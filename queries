@@ -1,0 +1,113 @@
+# ISBN
+
+{
+   fields:{
+      $elemMatch:{
+         name:"010",
+         subfields:{
+            $elemMatch:{
+               name:"a",
+               content:'86-13-00157-2'
+            }
+         }
+      }
+   }
+}
+
+
+
+# ISSN
+
+{
+   fields:{
+      $elemMatch:{
+         name:"011",
+         subfields:{
+            $elemMatch:{
+               name:"a",
+               content:"0350-7262"
+            }
+         }
+      }
+   }
+}
+
+
+# Naslov
+
+{
+   fields:{
+      $elemMatch:{
+         name:"200",
+         subfields:{
+            $elemMatch:{
+               name:"a",
+               content:"Rebeka"
+            }
+         }
+      }
+   }
+}
+
+
+# Autor
+
+{
+   fields:{
+      $elemMatch:{
+         name:"700",
+         $and:[
+            {
+               subfields:{
+                  $elemMatch:{
+                     name:"a",
+                     content:"DI MORIJE"
+                  }
+               }
+            },
+            {
+               subfields:{
+                  $elemMatch:{
+                     name:"b",
+                     content:"Dafne"
+                  }
+               }
+            }
+         ]
+      }
+   }
+}
+
+
+# Izdavac 
+
+{
+   fields:{
+      $elemMatch:{
+         name:"210",
+         subfields:{
+            $elemMatch:{
+               name:"c",
+               content:"BIGZ"
+            }
+         }
+      }
+   }
+}
+
+
+# Godina izdavanja
+
+{
+   fields:{
+      $elemMatch:{
+         name:"210",
+         subfields:{
+            $elemMatch:{
+               name:"d",
+               content: "1987"
+            }
+         }
+      }
+   }
+}

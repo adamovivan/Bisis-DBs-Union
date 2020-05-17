@@ -1,14 +1,13 @@
 package records;
 
 import lombok.Data;
-import org.bson.types.ObjectId;
 
 import java.util.Date;
 import java.util.List;
 
 @Data
 public class Record {
-    private ObjectId _id;
+//    private String _id;
     /** record identifier */
     private int recordID;
     /** id in books_common collection */
