@@ -4,8 +4,12 @@ import lombok.Data;
 
 @Data
 public class Subsubfield {
-  /** subsubfield name */
+  /**
+   * subsubfield name
+   */
   private char name;
-  /** subsubfield content */
+  /**
+   * subsubfield content
+   */
   private String content;
 }

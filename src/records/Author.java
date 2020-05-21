@@ -4,8 +4,12 @@ import lombok.Data;
 
 @Data
 public class Author {
-  /** the librarian username */
+  /**
+   * the librarian username
+   */
   private String username;
-  /** the name of the librarian's institution */
+  /**
+   * the name of the librarian's institution
+   */
   private String institution;
 }
