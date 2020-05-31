@@ -3,7 +3,7 @@ package records;
 import lombok.Data;
 
 @Data
-public class Subsubfield {
+public class SubSubField {
   /**
    * subsubfield name
    */

@@ -4,16 +4,20 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.Updates;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import records.Duplicate;
 import records.Record;
 import records.TempRecord;
+import union.Union;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.mongodb.client.model.Filters.and;
@@ -27,6 +31,7 @@ public class FullMode {
 
   private final MongoClient mongoClient;
   private final String[] collections = {BGB_RECORDS, GBNS_RECORDS, BS_RECORDS, BMB_RECORDS};
+
 
   public FullMode(MongoClient mongoClient) {
     this.mongoClient = mongoClient;
@@ -43,24 +48,25 @@ public class FullMode {
     MongoCollection<Record> bsCollection = database.getCollection(BS_RECORDS, Record.class);
     MongoCollection<Record> bmbCollection = database.getCollection(BMB_RECORDS, Record.class);
 
-    //    Bson query = elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a), eq(CONTENT, "86-13-00157-2")))));
-    Bson query = elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))));
+    Bson queryISBN = elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))));   // get all which have isbn
 
-    MongoCursor<Record> bgbCursor = bgbCollection.find(query).cursor();
-    MongoCursor<Record> gbnsCursor = bgbCollection.find(query).cursor();
+    MongoCursor<Record> bgbCursor = bgbCollection.find(queryISBN).cursor();
+    MongoCursor<Record> gbnsCursor = gbnsCollection.find(queryISBN).cursor();
     //    MongoCursor<Record> bsCursor = bgbCollection.find(query).cursor();
     //    MongoCursor<Record> bmbCursor = bgbCollection.find(query).cursor();
-    System.out.println();
+
     long keysAddingStart = System.currentTimeMillis();
-    System.out.println("Keys adding -> START");
-    Map<String, Integer> bgbRecordKeys = new HashMap<>();    // TODO use redis instead of that
+    System.out.println("\nKeys adding -> START");
+    Map<String, Integer> bgbRecordKeysISBN = new HashMap<>();  // (isbn, recordID)  // TODO use redis instead of that
+
+    // inserts in union bgb records and remember their isbn-s
     int cnt = 1;
     while (bgbCursor.hasNext()) {
-      Record record = bgbCursor.next();
-      record.setCameFrom("bgb");
-      record.setDuplicates(new ArrayList<>());
-      bgbRecordKeys.put(removeDashes(record.getISBN()), record.getRecordID());
-      unionCollection.insertOne(record);
+      Record bgbRecord = bgbCursor.next();
+      bgbRecord.setCameFrom(BGB);
+      bgbRecord.setDuplicates(new ArrayList<>());
+      bgbRecordKeysISBN.put(removeDashes(bgbRecord.getISBN()), bgbRecord.getRecordID());
+      unionCollection.insertOne(bgbRecord);
 
       if (cnt >= 1000) {
         break;
@@ -70,42 +76,90 @@ public class FullMode {
     long keysAddingEnd = System.currentTimeMillis();
     long keysAddingTimeElapsed = keysAddingEnd - keysAddingStart;
     System.out.println("Keys adding -> END -> Time: " + keysAddingTimeElapsed);
-    System.out.println();
 
+    long mergeStart = System.currentTimeMillis();
+    System.out.println("\nMerging records -> START");
+    int update_cnt = 0;
+    int new_records_cnt = 0;
+    while (gbnsCursor.hasNext()) {
+      Record gbnsRecord = gbnsCursor.next();
+      String isbn = gbnsRecord.getISBN();
+      Bson queryUnionRecord = eq(RECORD_ID, bgbRecordKeysISBN.get(removeDashes(isbn)));
+      MongoCursor<Record> unionRecordsCursor = bgbCollection.find(queryUnionRecord).cursor();
 
-    long unionUpdateStart = System.currentTimeMillis();
-    System.out.println("Keys adding -> START");
-    cnt = 1;
-    while (cnt < 10000 ) {
-      if (!gbnsCursor.hasNext()) {
-        break;
-      }
-      String isbn = gbnsCursor.next().getISBN();
-      Bson queryBgbRecord = eq("recordID", bgbRecordKeys.get(removeDashes(isbn)));
-      MongoCursor<Record> recordsCursor = bgbCollection.find(queryBgbRecord).cursor();
-
-      if(bgbCollection.countDocuments(queryBgbRecord) > 1) {
+      if (bgbCollection.countDocuments(queryUnionRecord) > 1) {
         System.out.println("NOT UNIQUE !!");
       }
-      if (!recordsCursor.hasNext()) {     // Zero or One record
-        continue;
-      }
+      if (!unionRecordsCursor.hasNext()) {     // Zero or One record
+        // exists in gbns, but not in bgb
+        gbnsRecord.setCameFrom(GBNS);
+        Union.setDefaultMetadata(gbnsRecord);
 
-      Record record = recordsCursor.next();
-      if (record.getDuplicates() == null) {
-        record.setDuplicates(Collections.singletonList("gbns"));
+        unionCollection.insertOne(gbnsRecord);
+
+        new_records_cnt += 1;
       } else {
-        record.getDuplicates().add("gbns");
-      }
+        // exists in both gbns and bgb
+        Record unionRecord = unionRecordsCursor.next();
 
-      unionCollection.updateOne(eq("recordID", record.getRecordID()), set("duplicates", record.getDuplicates()));
-      cnt += 1;
+        Union.mergeRecords(unionRecord, gbnsRecord);
+        Union.setDefaultMetadata(unionRecord);
+        Union.addDuplicate(unionRecord, GBNS, gbnsRecord.getRn());
+
+//        unionCollection.insertOne(unionRecord);
+
+        unionCollection.updateOne(eq(RECORD_ID, unionRecord.getRecordID()), Union.getUpdates(unionRecord));
+
+        update_cnt += 1;
+      }
     }
 
+    long mergeEnd = System.currentTimeMillis();
+    long mergeTimeElapsed = mergeEnd - mergeStart;
+    System.out.println("Merging records -> END -> Time: " + mergeTimeElapsed);
+    System.out.println("\nGBNS has isbn: " + gbnsCollection.countDocuments(queryISBN));
+    System.out.println("Union update: " + update_cnt);
+    System.out.println("Union new records: " + new_records_cnt);
 
-    long unionUpdateEnd = System.currentTimeMillis();
-    long unionUpdateTimeElapsed = unionUpdateEnd - unionUpdateStart;
-    System.out.println("Keys adding -> END -> Time: " + unionUpdateTimeElapsed);
+//    long remainingFieldsStart = System.currentTimeMillis();
+//    System.out.println("\nAdding remaining fields -> START");
+//    // todo add remaining fields from gbns
+//
+//
+//
+//    long remainingFieldsEnd = System.currentTimeMillis();
+//    long remainingFieldsTimeElapsed = remainingFieldsEnd - remainingFieldsStart;
+//    System.out.println("Adding remaining fields -> END -> Time: " + remainingFieldsTimeElapsed);
 
   }
+
+//  private void updateDuplicates(MongoCollection<Record> collection, Map<String, Integer> recordKeys, Bson query) {
+//
+//    int cnt = 1;
+//    while (cnt < 10000 ) {
+//      if (!gbnsCursor.hasNext()) {
+//        break;
+//      }
+//      String isbn = gbnsCursor.next().getISBN();
+//      Bson queryBgbRecord = eq(RECORD_ID, recordKeys.get(removeDashes(isbn)));
+//      MongoCursor<Record> recordsCursor = collection.find(queryBgbRecord).cursor();
+//
+//      if(collection.countDocuments(queryBgbRecord) > 1) {
+//        System.out.println("NOT UNIQUE !!");
+//      }
+//      if (!recordsCursor.hasNext()) {     // Zero or One record
+//        continue;
+//      }
+//
+//      Record record = recordsCursor.next();
+//      if (record.getDuplicates() == null) {
+//        record.setDuplicates(Collections.singletonList(GBNS));
+//      } else {
+//        record.getDuplicates().add(GBNS);
+//      }
+//
+//      unionCollection.updateOne(eq(RECORD_ID, record.getRecordID()), set(DUPLICATES, record.getDuplicates()));
+//      cnt += 1;
+//    }
+//  }
 }

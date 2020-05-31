@@ -3,7 +3,6 @@ package records;
 
 import lombok.Data;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
-import org.bson.codecs.pojo.annotations.BsonProperty;
 
 import static util.Constants.*;
 
@@ -13,9 +12,10 @@ import java.util.List;
 @Data
 public class Record {
   private String cameFrom;
-
-  @BsonProperty("duplicates")
-  private List<String> duplicates;
+  /**
+   * record dbs duplicates
+   */
+  private List<Duplicate> duplicates;
   /**
    * record identifier
    */
@@ -69,7 +69,7 @@ public class Record {
   public String getISBN() {
     for (Field field : fields) {
       if (field.getName().equals(_010)) {
-        for (Subfield subfield : field.getSubfields()) {
+        for (SubField subfield : field.getSubfields()) {
           if (subfield.getName() == _a) {
             return subfield.getContent();
           }

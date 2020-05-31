@@ -21,5 +21,5 @@ public class Field {
   /**
    * the list of subfields
    */
-  private List<Subfield> subfields;
+  private List<SubField> subfields;
 }

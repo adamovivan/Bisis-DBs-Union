@@ -111,3 +111,21 @@
       }
    }
 }
+
+# subsubfields koji imaju zadrzaj
+
+{
+   fields:{
+      $elemMatch:{
+         subfields:{
+            $elemMatch:{
+               subsubfields:{
+                  $not:{
+                     $size:0
+                  }
+               }
+            }
+         }
+      }
+   }
+}

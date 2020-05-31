@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class Subfield {
+public class SubField {
   /**
    * the name of this subfield
    */
@@ -17,7 +17,7 @@ public class Subfield {
   /**
    * the list of subsubfields
    */
-  private List<Subsubfield> subsubfields;
+  private List<SubSubField> subSubFields;
   /**
    * a secondary field contained by this subfield
    */
