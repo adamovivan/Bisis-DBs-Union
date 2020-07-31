@@ -129,3 +129,85 @@
       }
    }
 }
+
+####################
+
+Ako ima isbn, nema issn, provereno sa ovim query-jem:
+
+{
+   fields:{
+      $elemMatch:{
+         $and: [
+            {name:"011"},
+            {name: "010"}
+         ]
+      }
+   }
+}
+
+####################
+
+Dokumenti koji nemaju ni isbn, ni issn:
+
+{
+   fields:{
+      $not:{
+         $elemMatch:{
+            $or:[
+               {
+                  name:"011"
+               },
+               {
+                  name:"010"
+               }
+            ]
+         }
+      }
+   }
+}
+
+
+######################
+
+Dokumenti koji nemaju ni isbn, ni issn, ni naslov, ni izdavaca, ni godinu izdanja:
+
+{
+   fields:{
+      $not:{
+         $elemMatch:{
+            $or:[
+               {
+                  name:"011"
+               },
+               {
+                  name:"010"
+               },
+               {
+                  name:"200",
+                  subfields:{
+                     $elemMatch:{
+                        name:"a"
+                     }
+                  }
+               },
+               {
+                  name:"210",
+                  subfields:{
+                     $elemMatch:{
+                        name:"c"
+                     }
+                  }
+               },
+               {
+                  name:"210",
+                  subfields:{
+                     $elemMatch:{
+                        name:"d"
+                     }
+                  }
+               }
+            ]
+         }
+      }
+   }
+}
