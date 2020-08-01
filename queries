@@ -112,37 +112,28 @@
    }
 }
 
-# subsubfields koji imaju zadrzaj
-
-{
-   fields:{
-      $elemMatch:{
-         subfields:{
-            $elemMatch:{
-               subsubfields:{
-                  $not:{
-                     $size:0
-                  }
-               }
-            }
-         }
-      }
-   }
-}
 
 ####################
 
-Ako ima isbn, nema issn, provereno sa ovim query-jem:
+Dokumenti koji imaju i isbn i issn:
 
 {
-   fields:{
-      $elemMatch:{
-         $and: [
-            {name:"011"},
-            {name: "010"}
-         ]
+   $and:[
+      {
+         fields:{
+            $elemMatch:{
+               name:"010"
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"011"
+            }
+         }
       }
-   }
+   ]
 }
 
 ####################
@@ -170,6 +161,7 @@ Dokumenti koji nemaju ni isbn, ni issn:
 ######################
 
 Dokumenti koji nemaju ni isbn, ni issn, ni naslov, ni izdavaca, ni godinu izdanja:
+
 
 {
    fields:{
@@ -210,4 +202,217 @@ Dokumenti koji nemaju ni isbn, ni issn, ni naslov, ni izdavaca, ni godinu izdanj
          }
       }
    }
+}
+
+
+######################
+
+Sadrzi samo isbn, a ne sadrzi issn i naslov:
+
+{
+   $and:[
+      {
+         fields:{
+            $not:{
+               $elemMatch:{
+                  $or:[
+                     {
+                        name:"011"
+                     },
+                     {
+                        name:"200",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
+                     }
+                  ]
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"010"
+            }
+         }
+      }
+   ]
+}
+
+################################
+
+Nemaju svi dokumenti naslov AND izdavaca AND godinu izdanja.
+Svi oni koji imaju ta tri, a nemaju isbn i issn:
+
+{
+   $and:[
+      {
+         fields:{
+            $not:{
+               $elemMatch:{
+                  $or:[
+                     {
+                        name:"011"
+                     },
+                     {
+                        name:"010"
+                     }
+                  ]
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"200",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"210",
+               subfields:{
+                  $elemMatch:{
+                     name:"c"
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"210",
+               subfields:{
+                  $elemMatch:{
+                     name:"d"
+                  }
+               }
+            }
+         }
+      }
+   ]
+}
+
+
+################################
+
+Svi oni koji imaju naslov AND izdavaca, a nemaju isbn i issn i godinu izdanja:
+
+{
+   $and:[
+      {
+         fields:{
+            $not:{
+               $elemMatch:{
+                  $or:[
+                     {
+                        name:"011"
+                     },
+                     {
+                        name:"010"
+                     },
+                     {
+                        name:"210",
+                        subfields:{
+                           $elemMatch:{
+                              name:"d"
+                           }
+                        }
+                     }
+                  ]
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"200",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"210",
+               subfields:{
+                  $elemMatch:{
+                     name:"c"
+                  }
+               }
+            }
+         }
+      }
+   ]
+}
+
+
+################################
+
+
+Svi oni koji imaju naslov, a nemaju isbn i issn i izdavaca i godinu izdanja:
+
+{
+   $and:[
+      {
+         fields:{
+            $not:{
+               $elemMatch:{
+                  $or:[
+                     {
+                        name:"011"
+                     },
+                     {
+                        name:"010"
+                     },
+                     {
+                        name:"210",
+                        subfields:{
+                           $elemMatch:{
+                              name:"c"
+                           }
+                        }
+                     },
+                     {
+                        name:"210",
+                        subfields:{
+                           $elemMatch:{
+                              name:"d"
+                           }
+                        }
+                     }
+                  ]
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"200",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      }
+   ]
 }
