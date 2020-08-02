@@ -78,4 +78,18 @@ public class Record {
     }
     return null;
   }
+
+  @BsonIgnore
+  public String getISSN() {
+    for (Field field : fields) {
+      if (field.getName().equals(_011)) {
+        for (SubField subfield : field.getSubfields()) {
+          if (subfield.getName() == _a) {
+            return subfield.getContent();
+          }
+        }
+      }
+    }
+    return null;
+  }
 }

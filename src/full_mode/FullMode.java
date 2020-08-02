@@ -6,8 +6,10 @@ import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import org.bson.conversions.Bson;
 import records.Record;
-import records.TempRecord;
+import union.MergeType;
 import union.Union;
+import util.Logger;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,6 +17,7 @@ import java.util.Map;
 import static com.mongodb.client.model.Filters.and;
 import static com.mongodb.client.model.Filters.elemMatch;
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.not;
 import static util.Constants.*;
 import static util.StringUtil.*;
 
@@ -22,7 +25,11 @@ public class FullMode {
 
   private final MongoClient mongoClient;
   private final String[] collections = {BGB_RECORDS, GBNS_RECORDS, BS_RECORDS, BMB_RECORDS};
-
+  private MongoCollection<Record> unionCollection;
+  private MongoCollection<Record> bgbCollection;
+  private MongoCollection<Record> gbnsCollection;
+  private MongoCollection<Record> bsCollection;
+  private MongoCollection<Record> bmbCollection;
 
   public FullMode(MongoClient mongoClient) {
     this.mongoClient = mongoClient;
@@ -31,52 +38,66 @@ public class FullMode {
   public void start() {
     MongoDatabase database = mongoClient.getDatabase(DATABASE_NAME);
 
-    MongoCollection<Record> unionCollection = database.getCollection(UNION_RECORDS, Record.class);
-    MongoCollection<TempRecord> tempRecordCollection = database.getCollection("tempRecord", TempRecord.class);
+    unionCollection = database.getCollection(UNION_RECORDS, Record.class);
+//    MongoCollection<TempRecord> tempRecordCollection = database.getCollection("tempRecord", TempRecord.class);
 
-    MongoCollection<Record> bgbCollection = database.getCollection(BGB_RECORDS, Record.class);
-    MongoCollection<Record> gbnsCollection = database.getCollection(GBNS_RECORDS, Record.class);
-    MongoCollection<Record> bsCollection = database.getCollection(BS_RECORDS, Record.class);
-    MongoCollection<Record> bmbCollection = database.getCollection(BMB_RECORDS, Record.class);
+    bgbCollection = database.getCollection(BGB_RECORDS, Record.class);
+    gbnsCollection = database.getCollection(GBNS_RECORDS, Record.class);
+    bsCollection = database.getCollection(BS_RECORDS, Record.class);
+    bmbCollection = database.getCollection(BMB_RECORDS, Record.class);
 
+    // isbn merge
     Bson queryISBN = elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))));   // get all which have isbn
+    merge(MergeType.ISBN, queryISBN);
 
-    MongoCursor<Record> bgbCursor = bgbCollection.find(queryISBN).cursor();
-    MongoCursor<Record> gbnsCursor = gbnsCollection.find(queryISBN).cursor();
-    //    MongoCursor<Record> bsCursor = bgbCollection.find(query).cursor();
+    // issn merge
+    Bson queryISSN = and(not(elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))))),
+            elemMatch(FIELDS, and(eq(NAME, _011), elemMatch(SUBFIELDS, and(eq(NAME, _a))))));   // get all which have issn, but not isbn
+    merge(MergeType.ISSN, queryISSN);
+
+  }
+
+  private void merge(MergeType mergeType, Bson query){
+    Logger logger = new Logger(mergeType);
+
+    MongoCursor<Record> bgbCursor = bgbCollection.find(query).cursor();
+    MongoCursor<Record> gbnsCursor = gbnsCollection.find(query).cursor();
+    //        MongoCursor<Record> bsCursor = bgbCollection.find(queryBS).cursor();
     //    MongoCursor<Record> bmbCursor = bgbCollection.find(query).cursor();
 
     long keysAddingStart = System.currentTimeMillis();
-    System.out.println("\nAdding keys, inserting bgb records -> START");
-    Map<String, Integer> bgbRecordKeysISBN = new HashMap<>();  // (isbn, recordID)  // TODO use redis instead of that
+    logger.newLine();
+    logger.info("Adding keys, inserting bgb records -> START");
+    Map<String, Integer> bgbRecordKeys = new HashMap<>();  // (mergeType, recordID)  // TODO use redis instead of that
 
-    // inserts in union bgb records and remember their isbn-s
-    int cnt = 1;
+    // inserts in union bgb records and remember their MergeType
+    int bgbCnt = 0;
     while (bgbCursor.hasNext()) {
+
+
       Record bgbRecord = bgbCursor.next();
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
-      bgbRecordKeysISBN.put(removeDashes(bgbRecord.getISBN()), bgbRecord.getRecordID());
-      unionCollection.insertOne(bgbRecord);
+      bgbRecordKeys.put(removeDashes(getMergeTypeValue(bgbRecord, mergeType)), bgbRecord.getRecordID());
 
-      if (cnt >= 1000) {    // insert first 1000 bgb records
+      unionCollection.insertOne(bgbRecord);
+      bgbCnt += 1;
+      if (bgbCnt >= 1000) {    // insert first 1000 bgb records
         break;
       }
-      cnt += 1;
     }
     long keysAddingEnd = System.currentTimeMillis();
     long keysAddingTimeElapsed = keysAddingEnd - keysAddingStart;
-    System.out.println("Adding keys, inserting bgb records -> END -> Time: " + keysAddingTimeElapsed);
+    logger.info("Adding keys, inserting bgb records -> END -> Time: " + keysAddingTimeElapsed);
 
     long mergeStart = System.currentTimeMillis();
-    System.out.println("\nMerging records -> START");
+    logger.info("Merging records -> START");
     int updateCnt = 0;
     int newRecordsCnt = 0;
     while (gbnsCursor.hasNext()) {
       Record gbnsRecord = gbnsCursor.next();
-      String isbnGbnsRecord = gbnsRecord.getISBN();
 
-      Integer recordIdBgb = bgbRecordKeysISBN.get(removeDashes(isbnGbnsRecord));
+      Integer recordIdBgb = bgbRecordKeys.get(removeDashes(getMergeTypeValue(gbnsRecord, mergeType)));
 
       if (recordIdBgb == null) {
         // exists in gbns, but not in bgb
@@ -94,7 +115,7 @@ public class FullMode {
       MongoCursor<Record> unionRecordsCursor = bgbCollection.find(queryUnionRecord).cursor();
 
       if (bgbCollection.countDocuments(queryUnionRecord) > 1) {
-        System.out.println("NOT UNIQUE !! Record id: " + recordIdBgb);
+        logger.err("NOT UNIQUE !! Record id: " + recordIdBgb);
         break;
       }
       else {
@@ -113,10 +134,26 @@ public class FullMode {
 
     long mergeEnd = System.currentTimeMillis();
     long mergeTimeElapsed = mergeEnd - mergeStart;
-    System.out.println("Merging records -> END -> Time: " + mergeTimeElapsed);
-    System.out.println("\nGBNS has isbn: " + gbnsCollection.countDocuments(queryISBN));
-    System.out.println("Union update: " + updateCnt);
-    System.out.println("Union new records: " + newRecordsCnt);
+    logger.info("Merging records -> END -> Time: " + mergeTimeElapsed);
+    logger.newLine();
+    logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
+    logger.info("Retrieved from GBNS: " + gbnsCollection.countDocuments(query));
+    logger.info("Union new BGB records: " + bgbCnt);
+    logger.info("Union new GBNS records: " + newRecordsCnt);
+    logger.info("Union update: " + updateCnt);
+    logger.info("Union total: " + unionCollection.countDocuments());
+    logger.separator();
+  }
 
+  private String getMergeTypeValue(Record record, MergeType mergeType) {
+    if (mergeType == MergeType.ISBN) {
+      return record.getISBN();
+    } else {
+      return record.getISSN();
+    }
+  }
+
+  private void mergeByTitle() {
+    Map<String, Integer> bgbRecordKeysTitle = new HashMap<>();  // (title, recordID)
   }
 }

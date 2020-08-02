@@ -13,7 +13,7 @@ public class Constants {
   public static final String BMB = "bmb";
   public static final String MSK = "msk";
 
-  public static final String UNION_RECORDS = "a_union_records";
+  public static final String UNION_RECORDS = "b_union_records";
   public static final String BGB_RECORDS = "bgb_records";
   public static final String GBNS_RECORDS = "gbns_records";
   public static final String BS_RECORDS = "bs_records";
