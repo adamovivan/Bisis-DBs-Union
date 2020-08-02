@@ -115,6 +115,7 @@
 
 ####################
 
+
 Dokumenti koji imaju i isbn i issn:
 
 {
@@ -122,14 +123,24 @@ Dokumenti koji imaju i isbn i issn:
       {
          fields:{
             $elemMatch:{
-               name:"010"
+               name:"010",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
             }
          }
       },
       {
          fields:{
             $elemMatch:{
-               name:"011"
+               name:"011",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
             }
          }
       }
@@ -138,7 +149,89 @@ Dokumenti koji imaju i isbn i issn:
 
 ####################
 
-Dokumenti koji nemaju ni isbn, ni issn:
+Dokumenti koji imaju issn, a nemaju isbn
+
+{
+   $and:[
+      {
+         fields:{
+            $not:{
+               $elemMatch:{
+                  name:"010",
+                  subfields:{
+                     $elemMatch:{
+                        name:"a"
+                     }
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"011",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      }
+   ]
+}
+
+####################
+
+Dokumenti koji imaju naslov, a nemaju ni isbn, ni issn
+
+{
+   $and:[
+      {
+         fields:{
+            $not:{
+               $elemMatch:{
+                  $or:[
+                     {
+                        name:"011",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
+                     },
+                     {
+                        name:"010",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
+                     }
+                  ]
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"200",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      }
+   ]
+}
+
+####################
+
+Dokumenti koji nemaju ni isbn, ni issn, ni naslov:
 
 {
    fields:{
@@ -146,10 +239,28 @@ Dokumenti koji nemaju ni isbn, ni issn:
          $elemMatch:{
             $or:[
                {
-                  name:"011"
+                  name:"011",
+                  subfields:{
+                     $elemMatch:{
+                        name:"a"
+                     }
+                  }
                },
                {
-                  name:"010"
+                  name:"010",
+                  subfields:{
+                     $elemMatch:{
+                        name:"a"
+                     }
+                  }
+               },
+               {
+                  name:"200",
+                  subfields:{
+                     $elemMatch:{
+                        name:"a"
+                     }
+                  }
                }
             ]
          }
@@ -169,10 +280,20 @@ Dokumenti koji nemaju ni isbn, ni issn, ni naslov, ni izdavaca, ni godinu izdanj
          $elemMatch:{
             $or:[
                {
-                  name:"011"
+                  name:"011",
+                  subfields:{
+                     $elemMatch:{
+                        name:"a"
+                     }
+                  }
                },
                {
-                  name:"010"
+                  name:"010",
+                  subfields:{
+                     $elemMatch:{
+                        name:"a"
+                     }
+                  }
                },
                {
                   name:"200",
@@ -217,7 +338,12 @@ Sadrzi samo isbn, a ne sadrzi issn i naslov:
                $elemMatch:{
                   $or:[
                      {
-                        name:"011"
+                        name:"011",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
                      },
                      {
                         name:"200",
@@ -235,7 +361,12 @@ Sadrzi samo isbn, a ne sadrzi issn i naslov:
       {
          fields:{
             $elemMatch:{
-               name:"010"
+               name:"010",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
             }
          }
       }
@@ -255,10 +386,20 @@ Svi oni koji imaju ta tri, a nemaju isbn i issn:
                $elemMatch:{
                   $or:[
                      {
-                        name:"011"
+                        name:"011",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
                      },
                      {
-                        name:"010"
+                        name:"010",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
                      }
                   ]
                }
@@ -317,10 +458,20 @@ Svi oni koji imaju naslov AND izdavaca, a nemaju isbn i issn i godinu izdanja:
                $elemMatch:{
                   $or:[
                      {
-                        name:"011"
+                        name:"011",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
                      },
                      {
-                        name:"010"
+                        name:"010",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
                      },
                      {
                         name:"210",
@@ -376,10 +527,20 @@ Svi oni koji imaju naslov, a nemaju isbn i issn i izdavaca i godinu izdanja:
                $elemMatch:{
                   $or:[
                      {
-                        name:"011"
+                        name:"011",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
                      },
                      {
-                        name:"010"
+                        name:"010",
+                        subfields:{
+                           $elemMatch:{
+                              name:"a"
+                           }
+                        }
                      },
                      {
                         name:"210",
