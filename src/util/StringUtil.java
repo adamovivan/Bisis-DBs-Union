@@ -1,9 +1,9 @@
 package util;
 
 public class StringUtil {
-  private StringUtil(){}
+  private StringUtil() {}
 
-  public static String removeDashes(String text){
+  public static String removeDashes(String text) {
     return text.replace("-", "");
   }
 }

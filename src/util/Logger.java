@@ -12,7 +12,7 @@ public class Logger {
   private MergeType mergeType;
   private DateTimeFormatter dateTimeFormatter;
 
-  private Logger(){}
+  private Logger() {}
 
   public Logger(MergeType mergeType) {
     this.mergeType = mergeType;
@@ -35,7 +35,7 @@ public class Logger {
     System.out.println();
   }
 
-  public void newLine(int n){
+  public void newLine(int n) {
     for (int i = 0; i < n; i++) {
       System.out.println();
     }
