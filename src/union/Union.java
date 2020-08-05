@@ -1,7 +1,6 @@
 package union;
 
 import org.bson.conversions.Bson;
-import records.Author;
 import records.Duplicate;
 import records.Field;
 import records.Record;
