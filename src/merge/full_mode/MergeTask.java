@@ -11,6 +11,9 @@ import union.UnionDB;
 import util.Logger;
 import util.RecordUtil;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static com.mongodb.client.model.Filters.eq;
 import static util.Constants.RECORD_ID;
 import static util.StringUtil.removeDashes;
@@ -53,7 +56,6 @@ public class MergeTask extends Thread {
 //  }
 
   public void start() {
-    System.out.println("Starting " + threadName);
     if (thread == null) {
       thread = new Thread(this, threadName);
       thread.start();
@@ -61,44 +63,67 @@ public class MergeTask extends Thread {
   }
 
   public void run() {
+    long sveStart = System.currentTimeMillis();
+    Logger logger = new Logger(mergeType, threadName);
+    System.out.println("Starting [" + threadName + "] Batch size: " + limit);
 
-    Logger logger = new Logger(mergeType);
-
-    MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).cursor();
+    MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).skip(skip).limit(limit).cursor();
+    List<Record> records = new ArrayList<>();
 
     long mergeStart = System.currentTimeMillis();
     logger.info("Merging records -> START");
     int updateCnt = 0;
     int newRecordsCnt = 0;
 
+    long UKUPNOgetKeys = 0;
+    long UKUPNOrecordIdNull = 0;
+    long ukupnoNOTNULL = 0;
+    long ukupnoQueryUnion = 0;
+
     while (dbToMergeCursor.hasNext()) {
       Record dbToMergeRecord = dbToMergeCursor.next();
 
-      Integer recordId = UnionDB.instance().getRecordKeys().get(removeDashes(RecordUtil.getMergeTypeValue(dbToMergeRecord, mergeType)));
+      Integer recordId;
+
+      long startGetKeys = System.currentTimeMillis();
+      recordId = UnionDB.instance().getUnionRecordKeys().get(removeDashes(RecordUtil.getMergeTypeValue(dbToMergeRecord, mergeType)));
+
+      UKUPNOgetKeys += System.currentTimeMillis() - startGetKeys;
 
       if (recordId == null) {
         // exists in dbToMerge, but not in union
 
+        long startMERENJErecordIdNull = System.currentTimeMillis();
         dbToMergeRecord.setCameFrom(dbToMerge);
         Union.setDefaultMetadata(dbToMergeRecord);
-        UnionDB.instance().getRecordKeys().put(removeDashes(RecordUtil.getMergeTypeValue(dbToMergeRecord, mergeType)), UnionDB.instance().getUnionCurrentRecordId());
 
-//        unionCollection.insertOne(dbToMergeRecord);
         synchronized(UnionDB.instance()) {
-          UnionDB.instance().insertToUnionCollection(dbToMergeRecord);
+          UnionDB.instance().getCurrentRecordKeys().put(removeDashes(RecordUtil.getMergeTypeValue(dbToMergeRecord, mergeType)), UnionDB.instance().getUnionCurrentRecordId());
+          UnionDB.instance().setCurrentRecordId(dbToMergeRecord);
         }
-
+//        unionCollection.insertOne(dbToMergeRecord);
+        records.add(dbToMergeRecord);
+        if (records.size() >= 100) {
+          unionCollection.insertMany(records);
+          records.clear();
+        }
+        UKUPNOrecordIdNull += System.currentTimeMillis() - startMERENJErecordIdNull;
         newRecordsCnt += 1;
         continue;
       }
 
+      //////////############///////////////
+
+      long queryUnionStart = System.currentTimeMillis();
       Bson queryUnionRecord = eq(RECORD_ID, recordId);
       MongoCursor<Record> unionRecordsCursor = unionCollection.find(queryUnionRecord).cursor();
+      ukupnoQueryUnion += System.currentTimeMillis() - queryUnionStart;
 
       if (unionCollection.countDocuments(queryUnionRecord) > 1) {
         logger.err("NOT UNIQUE !! Record id: " + recordId);
         //break;
       } else {
+        long notNullStart = System.currentTimeMillis();
         // exists in both dbToMerge and union
         Record unionRecord = unionRecordsCursor.next();
 
@@ -109,8 +134,11 @@ public class MergeTask extends Thread {
         unionCollection.updateOne(eq(RECORD_ID, unionRecord.getRecordID()), Union.getUpdates(unionRecord));
 
         updateCnt += 1;
+
+        ukupnoNOTNULL += System.currentTimeMillis() - notNullStart;
       }
     }
+    unionCollection.insertMany(records);
 
     long mergeEnd = System.currentTimeMillis();
     long mergeTimeElapsed = mergeEnd - mergeStart;
@@ -118,11 +146,17 @@ public class MergeTask extends Thread {
     logger.newLine();
     //    logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
     logger.info("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + dbToMergeCollection.countDocuments(query));
+    logger.info("Batch size [" + dbToMerge.toUpperCase() + "]: " + limit);
     //    logger.info("Union new BGB records: " + bgbCnt);
     logger.info("Union new [" + dbToMerge.toUpperCase() + "] records: " + newRecordsCnt);
     logger.info("Union update: " + updateCnt);
     logger.info("Union total: " + unionCollection.countDocuments());
-    logger.separator();
+    logger.info("UKUPNOgetKeys: " + UKUPNOgetKeys);
+    logger.info("UKUPNOrecordIdNull: " + UKUPNOrecordIdNull);
+    logger.info("UKUPNONOTnull: " + ukupnoNOTNULL);
+    logger.info("UKUPNO Query Union: " + ukupnoQueryUnion);
+    logger.info("SVE: " + (System.currentTimeMillis() - sveStart));
+    Logger.separator();
   }
 
 

@@ -11,23 +11,29 @@ public class Logger {
 
   private MergeType mergeType;
   private DateTimeFormatter dateTimeFormatter;
+  private String task;
 
   private Logger() {}
 
-  public Logger(MergeType mergeType) {
+  public Logger(MergeType mergeType, String task) {
     this.mergeType = mergeType;
     this.dateTimeFormatter = DateTimeFormatter.ofPattern(DATE_TIME_FORMAT);
+    this.task = task;
   }
 
   public void info(String text) {
-    System.out.println("[" + mergeType.name() + "] " + "[" + LocalDateTime.now().format(dateTimeFormatter) + "] " + text);
+    System.out.println("[" + task + "] [" + mergeType.name() + "] [" + LocalDateTime.now().format(dateTimeFormatter) + "] " + text);
   }
 
   public void err(String text) {
-    System.err.println("[" + mergeType.name() + "] " + "[" + LocalDateTime.now().format(dateTimeFormatter) + "] " + text);
+    System.err.println("[" + task + "] [" + mergeType.name() + "] " + "[" + LocalDateTime.now().format(dateTimeFormatter) + "] " + text);
   }
 
-  public void separator() {
+  public static void separator() {
+    System.out.println("\n-------------------------------------------------");
+  }
+
+  public static void separatorBold() {
     System.out.println("\n#################################################");
   }
 
