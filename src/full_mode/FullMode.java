@@ -1,6 +1,5 @@
 package full_mode;
 
-import com.mongodb.Cursor;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -13,6 +12,7 @@ import util.Logger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
@@ -25,6 +25,7 @@ import static util.StringUtil.*;
 
 public class FullMode {
 
+  private static final int BATCH_SIZE = 1000;
   private final MongoClient mongoClient;
   private final String[] dbsToMerge = {GBNS, BS, BMB};
   private MongoCollection<Record> unionCollection;
@@ -58,9 +59,9 @@ public class FullMode {
     merge(MergeType.ISBN, queryISBN);
 
     // issn merge
-    Bson queryISSN = and(not(elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))))),
-            elemMatch(FIELDS, and(eq(NAME, _011), elemMatch(SUBFIELDS, and(eq(NAME, _a))))));   // get all which have issn, but not isbn
-    merge(MergeType.ISSN, queryISSN);
+//    Bson queryISSN = and(not(elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))))),
+//            elemMatch(FIELDS, and(eq(NAME, _011), elemMatch(SUBFIELDS, and(eq(NAME, _a))))));   // get all which have issn, but not isbn
+//    merge(MergeType.ISSN, queryISSN);
 
   }
 
@@ -76,70 +77,88 @@ public class FullMode {
     logger.newLine();
     logger.info("Adding keys, inserting bgb records -> START");
 
-    // inserts records in union bgb and remembers their MergeType
+    // inserts bgb records in union and remembers their MergeType
+    List<Record> batchRecords = new ArrayList<>();
     int bgbCnt = 0;
     while (bgbCursor.hasNext()) {
 
       Record bgbRecord = bgbCursor.next();
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
-      recordKeys.put(removeDashes(getMergeTypeValue(bgbRecord, mergeType)), unionCurrentRecordId);
-      insertToUnionCollection(bgbRecord);
+      addRecordToBatch(bgbRecord, batchRecords);
+      recordKeys.put(removeDashes(getMergeTypeValue(bgbRecord, mergeType)), bgbRecord.getRecordID());
+
+      if (batchRecords.size() >= BATCH_SIZE) {
+        insertToUnionCollection(batchRecords);
+      }
 
       bgbCnt += 1;
       if (bgbCnt >= 1000) {    // insert first 1000 bgb records
         break;
       }
     }
+    insertToUnionCollection(batchRecords);
+
     long keysAddingEnd = System.currentTimeMillis();
     long keysAddingTimeElapsed = keysAddingEnd - keysAddingStart;
     logger.info("Adding keys, inserting bgb records -> END -> Time: " + keysAddingTimeElapsed);
     logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
     logger.info("Union new BGB records: " + bgbCnt);
 
-    for (String database: dbsToMerge) {
-      mergeDatabaseWithUnion(database, mergeType, getCollectionByDatabaseName(database), query);
-    }
+//    for (String database: dbsToMerge) {
+//      mergeDatabaseWithUnion(database, mergeType, getCollectionByDatabaseName(database), query);
+//    }
+    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query);
   }
 
-  private void mergeDatabaseWithUnion(String dbToMerge, MergeType mergeType, MongoCollection<Record> dbToMergeCollection, Bson query) {
+  private void mergeWithUnionDatabase(String dbToMerge, MergeType mergeType, MongoCollection<Record> dbToMergeCollection, Bson query) {
     Logger logger = new Logger(mergeType);
 
     MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).cursor();
+
+    long totalRecordIsNull = 0;
+    long totalRecordIsNotNull = 0;
+    long totalUnionQuerying = 0;
 
     long mergeStart = System.currentTimeMillis();
     logger.info("Merging records -> START");
     int updateCnt = 0;
     int newRecordsCnt = 0;
+    List<Record> batchRecords = new ArrayList<>();
     while (dbToMergeCursor.hasNext()) {
       Record dbToMergeRecord = dbToMergeCursor.next();
-
       Integer recordId = recordKeys.get(removeDashes(getMergeTypeValue(dbToMergeRecord, mergeType)));
 
       if (recordId == null) {
         // exists in dbToMerge, but not in union
-
+        long startRecordIsNull = System.currentTimeMillis();
         dbToMergeRecord.setCameFrom(dbToMerge);
         Union.setDefaultMetadata(dbToMergeRecord);
-        recordKeys.put(removeDashes(getMergeTypeValue(dbToMergeRecord, mergeType)), unionCurrentRecordId);
-        insertToUnionCollection(dbToMergeRecord);
+        addRecordToBatch(dbToMergeRecord, batchRecords);
+//        recordKeys.put(removeDashes(getMergeTypeValue(dbToMergeRecord, mergeType)), dbToMergeRecord.getRecordID()); TODO merge keys
+
+        if (batchRecords.size() >= BATCH_SIZE) {
+          insertToUnionCollection(batchRecords);
+        }
 
         newRecordsCnt += 1;
+        totalRecordIsNull += System.currentTimeMillis() - startRecordIsNull;
         continue;
       }
 
+      long startUnionQuerying = System.currentTimeMillis();
       Bson queryUnionRecord = eq(RECORD_ID, recordId);
       MongoCursor<Record> unionRecordsCursor = unionCollection.find(queryUnionRecord).cursor();
+      totalUnionQuerying += System.currentTimeMillis() - startUnionQuerying;
 
       if (unionCollection.countDocuments(queryUnionRecord) > 1) {
         logger.err("NOT UNIQUE !! Record id: " + recordId);
         //break;
       }
       else {
-
+        long startRecordIsNotNull = System.currentTimeMillis();
         // exists in both dbToMerge and union
         Record unionRecord = unionRecordsCursor.next();
-
         Union.mergeRecords(unionRecord, dbToMergeRecord);
         Union.setDefaultMetadata(unionRecord);
         Union.addDuplicate(unionRecord, dbToMerge, dbToMergeRecord.getRn());
@@ -147,8 +166,10 @@ public class FullMode {
         unionCollection.updateOne(eq(RECORD_ID, unionRecord.getRecordID()), Union.getUpdates(unionRecord));
 
         updateCnt += 1;
+        totalRecordIsNotNull = System.currentTimeMillis() - startRecordIsNotNull;
       }
     }
+    insertToUnionCollection(batchRecords);
 
     long mergeEnd = System.currentTimeMillis();
     long mergeTimeElapsed = mergeEnd - mergeStart;
@@ -160,13 +181,25 @@ public class FullMode {
     logger.info("Union new [" + dbToMerge.toUpperCase() + "] records: " + newRecordsCnt);
     logger.info("Union update: " + updateCnt);
     logger.info("Union total: " + unionCollection.countDocuments());
+    logger.newLine();
+    logger.info("Total record is null: " + totalRecordIsNull);
+    logger.info("Total record is not null: " + totalRecordIsNotNull);
+    logger.info("Total union querying: " + totalUnionQuerying);
     logger.separator();
   }
 
-  private void insertToUnionCollection(Record record) {
+  private void addRecordToBatch(Record record, List<Record> batch) {
     record.setRecordID(unionCurrentRecordId);
-    unionCollection.insertOne(record);
+    batch.add(record);
     unionCurrentRecordId += 1;
+  }
+
+  private void insertToUnionCollection(List<Record> records) {
+    if (records.isEmpty()) {
+      return;
+    }
+    unionCollection.insertMany(records);
+    records.clear();
   }
 
   private String getMergeTypeValue(Record record, MergeType mergeType) {
