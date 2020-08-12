@@ -5,6 +5,7 @@ import com.mongodb.client.MongoClients;
 import merge.full_mode.FullMode;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
+import redis.clients.jedis.Jedis;
 import util.Constants;
 
 
@@ -15,7 +16,10 @@ import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 class Main {
 
     public static void main(String[] args) {
-        ConnectionString connectionString = new ConnectionString(Constants.CONNECTION_STRING);
+        ConnectionString connectionString = new ConnectionString(Constants.MONGO_CONNECTION_URL);
+//        Jedis jedis = new Jedis(Constants.REDIS_HOST, Constants.REDIS_PORT);
+//        jedis.set("aa", "bb");
+
         CodecRegistry pojoCodecRegistry = fromProviders(PojoCodecProvider.builder().automatic(true).build());
         CodecRegistry codecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(), pojoCodecRegistry);
         MongoClientSettings settings = MongoClientSettings.builder()
