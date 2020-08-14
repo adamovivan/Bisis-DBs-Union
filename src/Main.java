@@ -17,8 +17,7 @@ class Main {
 
     public static void main(String[] args) {
         ConnectionString connectionString = new ConnectionString(Constants.MONGO_CONNECTION_URL);
-//        Jedis jedis = new Jedis(Constants.REDIS_HOST, Constants.REDIS_PORT);
-//        jedis.set("aa", "bb");
+        Jedis jedis = new Jedis(Constants.REDIS_HOST, Constants.REDIS_PORT);
 
         CodecRegistry pojoCodecRegistry = fromProviders(PojoCodecProvider.builder().automatic(true).build());
         CodecRegistry codecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(), pojoCodecRegistry);
@@ -29,7 +28,7 @@ class Main {
 
         MongoClient mongoClient = MongoClients.create(settings);
 
-        FullMode fullMode = new FullMode(mongoClient);
+        FullMode fullMode = new FullMode(mongoClient, jedis);
         fullMode.start();
     }
 }
