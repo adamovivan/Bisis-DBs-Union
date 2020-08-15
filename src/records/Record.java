@@ -1,6 +1,5 @@
 package records;
 
-
 import lombok.Data;
 import org.bson.codecs.pojo.annotations.BsonIgnore;
 
@@ -93,4 +92,79 @@ public class Record {
     }
     return null;
   }
+
+  @BsonIgnore
+  public String getTitle() {
+    for (Field field : fields) {
+      if (field.getName().equals(_200)) {
+        for (SubField subfield : field.getSubfields()) {
+          if (subfield.getName() == _a) {
+            return subfield.getContent();
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  @BsonIgnore
+  public String getReleaseYear() {
+    for (Field field : fields) {
+      if (field.getName().equals(_210)) {
+        for (SubField subfield : field.getSubfields()) {
+          if (subfield.getName() == _d) {
+            return subfield.getContent();
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  @BsonIgnore
+  public String getPublisher() {
+    for (Field field : fields) {
+      if (field.getName().equals(_210)) {
+        for (SubField subfield : field.getSubfields()) {
+          if (subfield.getName() == _c) {
+            return subfield.getContent();
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  @BsonIgnore
+  public String getAuthor() {
+    for (Field field : fields) {
+      if (field.getName().equals(_700)) {
+        String lastName = getAuthorsLastName(field.getSubfields());
+        String firstName = getAuthorsFirstName(field.getSubfields());
+        return lastName + " " + firstName;
+      }
+    }
+    return null;
+  }
+
+  @BsonIgnore
+  private String getAuthorsLastName(List<SubField> subFields) {
+    for (SubField subfield : subFields) {
+      if (subfield.getName() == _a) {
+        return subfield.getContent();
+      }
+    }
+    return null;
+  }
+
+  @BsonIgnore
+  private String getAuthorsFirstName(List<SubField> subFields) {
+    for (SubField subfield : subFields) {
+      if (subfield.getName() == _b) {
+        return subfield.getContent();
+      }
+    }
+    return null;
+  }
+
 }

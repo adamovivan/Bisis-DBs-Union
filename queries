@@ -577,3 +577,54 @@ Svi oni koji imaju naslov, a nemaju isbn i issn i izdavaca i godinu izdanja:
       }
    ]
 }
+
+
+################################
+
+
+Isti ISBN i godina izdanja:
+
+{
+   $and:[
+      {
+         fields:{
+            $elemMatch:{
+               name:"010",
+               subfields:{
+                  $elemMatch:{
+                     name:"a",
+                     content:'86-19-00650-9'
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"210",
+               subfields:{
+                  $elemMatch:{
+                     name:"d",
+                     content:"1987"
+                  }
+               }
+            }
+         }
+      }
+   ]
+}
+
+
+################################
+
+
+Duplicates:
+
+{
+   duplicates:{
+      $in:[
+         "gbns"
+      ]
+   }
+}

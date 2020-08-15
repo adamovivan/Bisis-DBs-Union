@@ -8,9 +8,11 @@ import com.mongodb.client.MongoDatabase;
 import org.bson.conversions.Bson;
 import records.Record;
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.exceptions.JedisConnectionException;
 import union.MergeType;
 import union.Union;
 import util.Logger;
+import util.RecordUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +28,6 @@ import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Filters.in;
 import static com.mongodb.client.model.Filters.not;
 import static util.Constants.*;
-import static util.StringUtil.*;
 
 public class FullMode {
 
@@ -61,6 +62,8 @@ public class FullMode {
     recordKeys = new HashMap<>();
     unionCurrentRecordId = 1;
 
+    long startTotal = System.currentTimeMillis();
+
     // isbn merge
     Bson queryISBN = elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))));   // get all which have isbn
     merge(MergeType.ISBN, queryISBN);
@@ -70,6 +73,9 @@ public class FullMode {
 //            elemMatch(FIELDS, and(eq(NAME, _011), elemMatch(SUBFIELDS, and(eq(NAME, _a))))));   // get all which have issn, but not isbn
 //    merge(MergeType.ISSN, queryISSN);
 
+    System.out.println("Total time: " + (System.currentTimeMillis() - startTotal));
+
+    flushRedis();
   }
 
   private void merge(MergeType mergeType, Bson query) {
@@ -91,20 +97,23 @@ public class FullMode {
     int bgbCnt = 0;
     while (bgbCursor.hasNext()) {
       Record bgbRecord = bgbCursor.next();
-      String mergeKey = transformMergeKey(getMergeTypeValue(bgbRecord, mergeType), mergeType);
+//      String mergeKey = transformMergeKey(getMergeTypeValue(bgbRecord, mergeType), mergeType);
+      String mergeKey = RecordUtil.createRecordKey(bgbRecord);
 
-//      if (bgbRecordKeys.contains(mergeKey)) {
-//        System.out.println(bgbRecord.getISBN());
-//        duplicates += 1;
-//        continue;
-//      } else {
-//        bgbRecordKeys.add(mergeKey);
-//      }
+      if (bgbRecordKeys.contains(mergeKey)) {
+//        System.out.println(mergeKey);
+        duplicates += 1;
+        continue;
+      } else {
+        bgbRecordKeys.add(mergeKey);
+      }
 
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
       addRecordToBatch(bgbRecord, batchRecords);
-      recordKeys.put(transformMergeKey(getMergeTypeValue(bgbRecord, mergeType), mergeType), bgbRecord.getRecordID());
+      recordKeys.put(mergeKey, bgbRecord.getRecordID());
+//      addRecordKey(bgbRecord, mergeType);
+//      recordKeys.put(transformMergeKey(getMergeTypeValue(bgbRecord, mergeType), mergeType), bgbRecord.getRecordID());
 
       if (batchRecords.size() >= BATCH_SIZE) {
         insertToUnionCollection(batchRecords);
@@ -125,19 +134,16 @@ public class FullMode {
 
     logger.info("BGB keys: " + recordKeys.size());
     logger.info("BGB duplicates: " + duplicates);
-//    for (String database: dbsToMerge) {
-//      mergeWithUnionDatabase(database, mergeType, getCollectionByDatabaseName(database), query);
-//    }
-    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query);
-
-    redisClient.flushAll();
+    for (String database: dbsToMerge) {
+      mergeWithUnionDatabase(database, mergeType, getCollectionByDatabaseName(database), query);
+    }
+//    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query);
   }
 
   private void mergeWithUnionDatabase(String dbToMerge, MergeType mergeType, MongoCollection<Record> dbToMergeCollection, Bson query) {
     Logger logger = new Logger(mergeType);
 
     MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).cursor();
-    logger.info("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + gbnsCollection.countDocuments(query));
 
     long totalRecordIsNull = 0;
     long totalRecordIsNotNull = 0;
@@ -161,7 +167,8 @@ public class FullMode {
     while (dbToMergeCursor.hasNext()) {
 
       Record dbToMergeRecord = dbToMergeCursor.next();
-      String mergeKey = transformMergeKey(getMergeTypeValue(dbToMergeRecord, mergeType), mergeType);
+//      String mergeKey = transformMergeKey(getMergeTypeValue(dbToMergeRecord, mergeType), mergeType);
+      String mergeKey = RecordUtil.createRecordKey(dbToMergeRecord);
 
       if (dbToMergeKeys.contains(mergeKey)) {
 //        System.out.println(dbToMergeRecord.getISBN());
@@ -171,6 +178,7 @@ public class FullMode {
         dbToMergeKeys.add(mergeKey);
       }
 
+//      Integer recordId = recordKeys.get(mergeKey);
       Integer recordId = recordKeys.get(mergeKey);
 
       if (recordId == null) {
@@ -217,13 +225,13 @@ public class FullMode {
       if (recordsToUpdate.size() >= 1000) {
         long startRemoving = System.currentTimeMillis();
         unionCollection.deleteMany(in(RECORD_ID, idsToRemove));
-          totalRemoving += System.currentTimeMillis() - startRemoving;
-          long startInserting = System.currentTimeMillis();
-          unionCollection.insertMany(recordsToUpdate);
-          totalUpdating += System.currentTimeMillis() - startRemoving;
-          totalInserting += System.currentTimeMillis() - startInserting;
-          idsToRemove.clear();
-          recordsToUpdate.clear();
+        totalRemoving += System.currentTimeMillis() - startRemoving;
+        long startInserting = System.currentTimeMillis();
+        unionCollection.insertMany(recordsToUpdate);
+        totalUpdating += System.currentTimeMillis() - startRemoving;
+        totalInserting += System.currentTimeMillis() - startInserting;
+        idsToRemove.clear();
+        recordsToUpdate.clear();
 
 //          logger.info("------------");
 //          logger.info("Inserting updates");
@@ -247,7 +255,7 @@ public class FullMode {
     logger.info("Merging records -> END -> Time: " + mergeTimeElapsed);
     logger.newLine();
     //    logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
-    logger.info("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + gbnsCollection.countDocuments(query));
+    logger.info("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + dbToMergeCollection.countDocuments(query));
     logger.info("Duplicates (skipped): " + duplicates);
     //    logger.info("Union new BGB records: " + bgbCnt);
     logger.info("Union new [" + dbToMerge.toUpperCase() + "] records: " + newRecordsCnt);
@@ -256,8 +264,14 @@ public class FullMode {
     logger.newLine();
     logger.info("Total record is null: " + totalRecordIsNull);
     logger.info("Total record is not null: " + totalRecordIsNotNull);
-    logger.info("Total documents counting: " + totalDocumentsCounting);
     logger.separator();
+  }
+
+  private void addRecordKey(Record record) {
+    // TODO sledeci autori??
+
+    String key = RecordUtil.createRecordKey(record);
+    recordKeys.put(key, record.getRecordID());
   }
 
   private void addRecordToBatch(Record record, List<Record> batch) {
@@ -295,5 +309,14 @@ public class FullMode {
 
   private void mergeByTitle() {
     Map<String, Integer> bgbRecordKeysTitle = new HashMap<>();  // (title, recordID)
+  }
+
+  private void flushRedis() {
+      try {
+        redisClient.flushAll();
+      } catch (JedisConnectionException ignored) {}
+      finally {
+        redisClient.close();
+      }
   }
 }
