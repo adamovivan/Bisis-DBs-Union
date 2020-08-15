@@ -8,7 +8,6 @@ import com.mongodb.client.MongoDatabase;
 import org.bson.conversions.Bson;
 import records.Record;
 import redis.clients.jedis.Jedis;
-import sun.rmi.server.InactiveGroupException;
 import union.MergeType;
 import union.Union;
 import util.Logger;
@@ -54,45 +53,22 @@ public class FullMode {
     MongoDatabase database = mongoClient.getDatabase(DATABASE_NAME);
 
     unionCollection = database.getCollection(UNION_RECORDS, Record.class);
-    //    MongoCollection<TempRecord> tempRecordCollection = database.getCollection("tempRecord", TempRecord.class);
-
     bgbCollection = database.getCollection(BGB_RECORDS, Record.class);
     gbnsCollection = database.getCollection(GBNS_RECORDS, Record.class);
     bsCollection = database.getCollection(BS_RECORDS, Record.class);
     bmbCollection = database.getCollection(BMB_RECORDS, Record.class);
 
-    recordKeys = new HashMap<>();  // (mergeType, recordID)  // TODO use redis instead of that?
+    recordKeys = new HashMap<>();
     unionCurrentRecordId = 1;
-
-//    List<Record> records = new ArrayList<>();
-//    for (int i=0; i<10; i++) {
-//      Record r = new Record();
-//      r.setRecordID(i+1);
-//      records.add(r);
-//    }
-//    unionCollection.insertMany(records);
-//
-//    List<Record> toUpdate = new ArrayList<>();
-//    List<Integer> ids = new ArrayList<>();
-//
-//    for (int i = 0; i < 3; i++) {
-//      ids.add(i+1);
-//      Record r = new Record();
-//      r.setRecordID(i+1);
-//      toUpdate.add(r);
-//    }
-//
-//    unionCollection.deleteMany(in(RECORD_ID, ids));
-//    unionCollection.insertMany(toUpdate);
 
     // isbn merge
     Bson queryISBN = elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))));   // get all which have isbn
     merge(MergeType.ISBN, queryISBN);
 
-    // issn merge
-    Bson queryISSN = and(not(elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))))),
-            elemMatch(FIELDS, and(eq(NAME, _011), elemMatch(SUBFIELDS, and(eq(NAME, _a))))));   // get all which have issn, but not isbn
-    merge(MergeType.ISSN, queryISSN);
+//    // issn merge
+//    Bson queryISSN = and(not(elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))))),
+//            elemMatch(FIELDS, and(eq(NAME, _011), elemMatch(SUBFIELDS, and(eq(NAME, _a))))));   // get all which have issn, but not isbn
+//    merge(MergeType.ISSN, queryISSN);
 
   }
 
@@ -108,16 +84,27 @@ public class FullMode {
     logger.newLine();
     logger.info("Adding keys, inserting bgb records -> START");
 
-    // inserts bgb records in union and remembers their MergeType
+    // inserts bgb records in union, remembers their MergeType, skips duplicates
     List<Record> batchRecords = new ArrayList<>();
+    Set<String> bgbRecordKeys = new HashSet<>();
+    int duplicates = 0;
     int bgbCnt = 0;
     while (bgbCursor.hasNext()) {
-
       Record bgbRecord = bgbCursor.next();
+      String mergeKey = transformMergeKey(getMergeTypeValue(bgbRecord, mergeType), mergeType);
+
+//      if (bgbRecordKeys.contains(mergeKey)) {
+//        System.out.println(bgbRecord.getISBN());
+//        duplicates += 1;
+//        continue;
+//      } else {
+//        bgbRecordKeys.add(mergeKey);
+//      }
+
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
       addRecordToBatch(bgbRecord, batchRecords);
-      recordKeys.put(removeDashes(getMergeTypeValue(bgbRecord, mergeType)), bgbRecord.getRecordID());
+      recordKeys.put(transformMergeKey(getMergeTypeValue(bgbRecord, mergeType), mergeType), bgbRecord.getRecordID());
 
       if (batchRecords.size() >= BATCH_SIZE) {
         insertToUnionCollection(batchRecords);
@@ -136,10 +123,14 @@ public class FullMode {
     logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
     logger.info("Union new BGB records: " + bgbCnt);
 
-    for (String database: dbsToMerge) {
-      mergeWithUnionDatabase(database, mergeType, getCollectionByDatabaseName(database), query);
-    }
-//    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query); //25167, 10563
+    logger.info("BGB keys: " + recordKeys.size());
+    logger.info("BGB duplicates: " + duplicates);
+//    for (String database: dbsToMerge) {
+//      mergeWithUnionDatabase(database, mergeType, getCollectionByDatabaseName(database), query);
+//    }
+    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query);
+
+    redisClient.flushAll();
   }
 
   private void mergeWithUnionDatabase(String dbToMerge, MergeType mergeType, MongoCollection<Record> dbToMergeCollection, Bson query) {
@@ -165,17 +156,15 @@ public class FullMode {
     List<Record> recordsToUpdate = new ArrayList<>();
     List<Integer> idsToRemove = new ArrayList<>();
     Set<String> dbToMergeKeys = new HashSet<>();
-    int iteration = 1;
     int duplicates = 0;
 
     while (dbToMergeCursor.hasNext()) {
-//      if (iteration % 1000 == 0) {
-//        System.out.println("Iteration: " + iteration);
-//      }
+
       Record dbToMergeRecord = dbToMergeCursor.next();
-      String mergeKey = removeDashes(getMergeTypeValue(dbToMergeRecord, mergeType));
+      String mergeKey = transformMergeKey(getMergeTypeValue(dbToMergeRecord, mergeType), mergeType);
 
       if (dbToMergeKeys.contains(mergeKey)) {
+//        System.out.println(dbToMergeRecord.getISBN());
         duplicates += 1;
         continue;
       } else {
@@ -212,7 +201,6 @@ public class FullMode {
 
         newRecordsCnt += 1;
         totalRecordIsNull += System.currentTimeMillis() - startRecordIsNull;
-        iteration += 1;
         continue;
       }
       Record unionRecord = gson.fromJson(redisClient.get(String.valueOf(recordId)), Record.class);
@@ -251,8 +239,6 @@ public class FullMode {
 
         updateCnt += 1;
         totalRecordIsNotNull += System.currentTimeMillis() - startRecordIsNotNull;
-
-      iteration += 1;
     }
     insertToUnionCollection(batchRecords);
 

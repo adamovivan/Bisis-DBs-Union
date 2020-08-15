@@ -15,7 +15,7 @@ public class Constants {
   public static final String BMB = "bmb";
   public static final String MSK = "msk";
 
-  public static final String UNION_RECORDS = "a_bgb_gbns_union_records";
+  public static final String UNION_RECORDS = "a_test_union_records";
   public static final String BGB_RECORDS = "bgb_records";
   public static final String GBNS_RECORDS = "gbns_records";
   public static final String BS_RECORDS = "bs_records";
@@ -42,5 +42,9 @@ public class Constants {
   public static final String CREATION_DATE = "creationDate";
   public static final String MODIFIER = "modifier";
   public static final String LAST_MODIFIED_DATE = "lastModifiedDate";
+
+  public static final String ISBN_PREFIX_978 = "978";
+  public static final int ISBN_PREFIX_978_LENGTH = 3;
+  public static final int ISBN_978_LENGTH = 13;
 
 }
