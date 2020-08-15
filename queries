@@ -623,8 +623,8 @@ Duplicates:
 
 {
    duplicates:{
-      $in:[
-         "gbns"
-      ]
+      $elemMatch:{
+         name:"gbns"
+      }
    }
 }

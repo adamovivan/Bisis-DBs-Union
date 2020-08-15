@@ -222,6 +222,9 @@ public class FullMode {
       recordsToUpdate.add(unionRecord);
       idsToRemove.add(unionRecord.getRecordID());
 
+      // update redis
+      redisClient.set(String.valueOf(unionRecord.getRecordID()), gson.toJson(unionRecord));
+
       if (recordsToUpdate.size() >= 1000) {
         long startRemoving = System.currentTimeMillis();
         unionCollection.deleteMany(in(RECORD_ID, idsToRemove));
@@ -249,6 +252,9 @@ public class FullMode {
         totalRecordIsNotNull += System.currentTimeMillis() - startRecordIsNotNull;
     }
     insertToUnionCollection(batchRecords);
+
+    unionCollection.deleteMany(in(RECORD_ID, idsToRemove));
+    unionCollection.insertMany(recordsToUpdate);
 
     long mergeEnd = System.currentTimeMillis();
     long mergeTimeElapsed = mergeEnd - mergeStart;
