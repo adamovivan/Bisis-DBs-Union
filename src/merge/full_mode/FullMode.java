@@ -10,6 +10,7 @@ import records.Record;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import union.MergeType;
+import union.Queries;
 import union.Union;
 import util.Logger;
 import util.RecordUtil;
@@ -22,11 +23,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-import static com.mongodb.client.model.Filters.and;
-import static com.mongodb.client.model.Filters.elemMatch;
-import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Filters.in;
-import static com.mongodb.client.model.Filters.not;
 import static util.Constants.*;
 
 public class FullMode {
@@ -65,15 +62,13 @@ public class FullMode {
     long startTotal = System.currentTimeMillis();
 
     // isbn merge
-    Bson queryISBN = elemMatch(FIELDS,
-        and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))));   // get all which have isbn
-    merge(MergeType.ISBN, queryISBN);
+    merge(MergeType.ISBN, Queries.queryIsbn);
 
     // issn merge
-    Bson queryISSN = and(not(elemMatch(FIELDS, and(eq(NAME, _010), elemMatch(SUBFIELDS, and(eq(NAME, _a)))))),
-        elemMatch(FIELDS,
-            and(eq(NAME, _011), elemMatch(SUBFIELDS, and(eq(NAME, _a))))));   // get all which have issn, but not isbn
-    merge(MergeType.ISSN, queryISSN);
+    merge(MergeType.ISSN, Queries.queryIssnNotIsbn);
+
+    // title merge
+    merge(MergeType.TITLE, Queries.queryTitleNotIsbnNotIssn);
 
     System.out.println("Total time: " + (System.currentTimeMillis() - startTotal));
 
@@ -138,10 +133,10 @@ public class FullMode {
     logger.info("BGB duplicates: " + duplicates);
     logger.separator();
 
-    for (String database : dbsToMerge) {
-      mergeWithUnionDatabase(database, mergeType, getCollectionByDatabaseName(database), query);
-    }
-    //    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query);
+//    for (String database : dbsToMerge) {
+//      mergeWithUnionDatabase(database, mergeType, getCollectionByDatabaseName(database), query);
+//    }
+    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query);
   }
 
   private void mergeWithUnionDatabase(String dbToMerge, MergeType mergeType,
