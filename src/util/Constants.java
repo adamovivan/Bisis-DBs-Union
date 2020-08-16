@@ -7,7 +7,7 @@ public class Constants {
   public static final String MONGO_CONNECTION_URL = "mongodb://localhost:27017";
   public static final String REDIS_HOST = "localhost";
   public static final int REDIS_PORT = 6379;
-  public static final int REDIS_TIMEOUT = 120;
+  public static final int REDIS_TIMEOUT = 120000;
   public static final String DATABASE_NAME = "bisis";
 
   public static final String BGB = "bgb";
@@ -16,7 +16,7 @@ public class Constants {
   public static final String BMB = "bmb";
   public static final String MSK = "msk";
 
-  public static final String UNION_RECORDS = "a_test_union_records";
+  public static final String UNION_RECORDS = "a_test_2_union_records";
   public static final String BGB_RECORDS = "bgb_records";
   public static final String GBNS_RECORDS = "gbns_records";
   public static final String BS_RECORDS = "bs_records";
