@@ -133,7 +133,6 @@ public class FullMode {
     for (String database : dbsToMerge) {
       mergeWithUnionDatabase(database, mergeType, getCollectionByDatabaseName(database), query);
     }
-//    mergeWithUnionDatabase(GBNS, mergeType, gbnsCollection, query);
   }
 
   private void mergeWithUnionDatabase(String dbToMerge, MergeType mergeType,
@@ -153,7 +152,6 @@ public class FullMode {
     Set<String> dbToMergeKeys = new HashSet<>();
     Map<String, Integer> dbToMergeKeysNewRecords = new HashMap<>();
     int duplicates = 0;
-
     while (dbToMergeCursor.hasNext()) {
 
       Record dbToMergeRecord = dbToMergeCursor.next();
@@ -183,9 +181,7 @@ public class FullMode {
         continue;
       }
 
-      Record unionRecord = null;
-      try {
-        unionRecord = gson.fromJson(redisClient.get(String.valueOf(recordId)), Record.class);
+      Record unionRecord = gson.fromJson(redisClient.get(String.valueOf(recordId)), Record.class);
 
       // exists in both dbToMerge and union
       Union.mergeRecords(unionRecord, dbToMergeRecord);
@@ -194,14 +190,6 @@ public class FullMode {
 
       recordsToUpdate.add(unionRecord);
       idsToRemove.add(unionRecord.getRecordID());
-
-      }
-      catch (NullPointerException ex) {
-        System.out.println(recordId + " " + mergeKey + " " + dbToMergeRecord.getISBN());
-        System.out.println(unionRecord);
-        System.out.println("Record keys sz: " + recordKeys.size());
-        throw new NullPointerException();
-      }
 
       // update redis
       redisClient.set(String.valueOf(unionRecord.getRecordID()), gson.toJson(unionRecord));
@@ -299,13 +287,13 @@ public class FullMode {
     System.out.println("GBNS total: " + gbnsTotal);
     System.out.println("BS total: " + bsTotal);
     System.out.println("BMB total: " + bmbTotal);
-    System.out.println("Total: " + bgbTotal + gbnsTotal + bsTotal + bmbTotal);
+    System.out.println("Total: " + (bgbTotal + gbnsTotal + bsTotal + bmbTotal));
     System.out.println();
     System.out.println("BGB others: " + bgbOthers);
     System.out.println("GBNS others: " + gbnsOthers);
     System.out.println("BS others: " + bsOthers);
     System.out.println("BMB others: " + bmbOthers);
-    System.out.println("Total: " + bgbOthers + gbnsOthers + bsOthers + bmbOthers);
+    System.out.println("Total: " + (bgbOthers + gbnsOthers + bsOthers + bmbOthers));
     System.out.println();
     System.out.println("Total duplicates: " + totalDuplicates);
     System.out.println("Total updates: " + totalUpdates);
