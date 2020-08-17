@@ -40,6 +40,9 @@ public class FullMode {
   private MongoCollection<Record> bmbCollection;
   private Map<String, Integer> recordKeys;
   private int unionCurrentRecordId;
+  private int totalDuplicates;
+  private int totalUpdates;
+  private long totalTime;
 
   public FullMode(MongoClient mongoClient, Jedis redisClient) {
     this.mongoClient = mongoClient;
@@ -58,6 +61,8 @@ public class FullMode {
 
     recordKeys = new HashMap<>();
     unionCurrentRecordId = 1;
+    totalDuplicates = 0;
+    totalUpdates = 0;
 
     long startTotal = System.currentTimeMillis();
 
@@ -70,9 +75,9 @@ public class FullMode {
     // title merge
     merge(MergeType.TITLE, Queries.queryTitleNotIsbnNotIssn);
 
-    System.out.println("Total time: " + (System.currentTimeMillis() - startTotal));
-
+    totalTime = System.currentTimeMillis() - startTotal;
     flushRedis();
+    printResults();
   }
 
   private void merge(MergeType mergeType, Bson query) {
@@ -87,14 +92,14 @@ public class FullMode {
     // inserts bgb records in union, remembers their MergeType, skips duplicates
     List<Record> batchRecords = new ArrayList<>();
     Set<String> bgbRecordKeys = new HashSet<>();
-    int duplicates = 0;
+    int bgbDuplicates = 0;
     int bgbCnt = 0;
     while (bgbCursor.hasNext()) {
       Record bgbRecord = bgbCursor.next();
       String mergeKey = RecordUtil.createRecordKey(bgbRecord);
 
       if (bgbRecordKeys.contains(mergeKey)) {
-        duplicates += 1;
+        bgbDuplicates += 1;
         continue;
       } else {
         bgbRecordKeys.add(mergeKey);
@@ -113,12 +118,14 @@ public class FullMode {
     }
     insertToUnionCollection(batchRecords);
 
+    totalDuplicates += bgbDuplicates;
+
     long keysAddingEnd = System.currentTimeMillis();
     long keysAddingTimeElapsed = keysAddingEnd - keysAddingStart;
     logger.info("Adding keys, inserting bgb records -> END -> Time: " + keysAddingTimeElapsed);
     logger.newLine();
     logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
-    logger.info("BGB duplicates: " + duplicates);
+    logger.info("BGB duplicates: " + bgbDuplicates);
     logger.info("Union new BGB records: " + bgbCnt);
     logger.info("Union total: " + bgbCollection.countDocuments());
     logger.separator();
@@ -144,6 +151,7 @@ public class FullMode {
     List<Record> recordsToUpdate = new ArrayList<>();
     List<Integer> idsToRemove = new ArrayList<>();
     Set<String> dbToMergeKeys = new HashSet<>();
+    Map<String, Integer> dbToMergeKeysNewRecords = new HashMap<>();
     int duplicates = 0;
 
     while (dbToMergeCursor.hasNext()) {
@@ -165,7 +173,7 @@ public class FullMode {
         dbToMergeRecord.setCameFrom(dbToMerge);
         Union.setDefaultMetadata(dbToMergeRecord);
         addRecordToBatch(dbToMergeRecord, batchRecords);
-        //        recordKeys.put(removeDashes(getMergeTypeValue(dbToMergeRecord, mergeType)), dbToMergeRecord.getRecordID()); TODO merge keys
+        dbToMergeKeysNewRecords.put(mergeKey, dbToMergeRecord.getRecordID());
 
         if (batchRecords.size() >= BATCH_SIZE) {
           insertToUnionCollection(batchRecords);
@@ -174,7 +182,10 @@ public class FullMode {
         newRecordsCnt += 1;
         continue;
       }
-      Record unionRecord = gson.fromJson(redisClient.get(String.valueOf(recordId)), Record.class);
+
+      Record unionRecord = null;
+      try {
+        unionRecord = gson.fromJson(redisClient.get(String.valueOf(recordId)), Record.class);
 
       // exists in both dbToMerge and union
       Union.mergeRecords(unionRecord, dbToMergeRecord);
@@ -183,6 +194,14 @@ public class FullMode {
 
       recordsToUpdate.add(unionRecord);
       idsToRemove.add(unionRecord.getRecordID());
+
+      }
+      catch (NullPointerException ex) {
+        System.out.println(recordId + " " + mergeKey + " " + dbToMergeRecord.getISBN());
+        System.out.println(unionRecord);
+        System.out.println("Record keys sz: " + recordKeys.size());
+        throw new NullPointerException();
+      }
 
       // update redis
       redisClient.set(String.valueOf(unionRecord.getRecordID()), gson.toJson(unionRecord));
@@ -195,6 +214,12 @@ public class FullMode {
     }
     insertToUnionCollection(batchRecords);
     updateUnionCollection(recordsToUpdate, idsToRemove);
+
+    // merge keys
+    recordKeys.putAll(dbToMergeKeysNewRecords);
+
+    totalDuplicates += duplicates;
+    totalUpdates += updateCnt;
 
     long mergeEnd = System.currentTimeMillis();
     long mergeTimeElapsed = mergeEnd - mergeStart;
@@ -236,14 +261,6 @@ public class FullMode {
     recordsToUpdate.clear();
   }
 
-  private String getMergeTypeValue(Record record, MergeType mergeType) {
-    if (mergeType == MergeType.ISBN) {
-      return record.getISBN();
-    } else {
-      return record.getISSN();
-    }
-  }
-
   private MongoCollection<Record> getCollectionByDatabaseName(String database) {
     switch (database) {
       case GBNS:
@@ -257,10 +274,6 @@ public class FullMode {
     }
   }
 
-  private void mergeByTitle() {
-    Map<String, Integer> bgbRecordKeysTitle = new HashMap<>();  // (title, recordID)
-  }
-
   private void flushRedis() {
     try {
       redisClient.flushAll();
@@ -268,5 +281,35 @@ public class FullMode {
     } finally {
       redisClient.close();
     }
+  }
+
+  private void printResults() {
+    long bgbTotal = bgbCollection.countDocuments();
+    long gbnsTotal = gbnsCollection.countDocuments();
+    long bsTotal = bsCollection.countDocuments();
+    long bmbTotal = bmbCollection.countDocuments();
+
+    long bgbOthers = bgbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
+    long gbnsOthers = gbnsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
+    long bsOthers = bsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
+    long bmbOthers = bmbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
+
+    System.out.println("\nTotal time: " + totalTime + "ms\n");
+    System.out.println("BGB total: " + bgbTotal);
+    System.out.println("GBNS total: " + gbnsTotal);
+    System.out.println("BS total: " + bsTotal);
+    System.out.println("BMB total: " + bmbTotal);
+    System.out.println("Total: " + bgbTotal + gbnsTotal + bsTotal + bmbTotal);
+    System.out.println();
+    System.out.println("BGB others: " + bgbOthers);
+    System.out.println("GBNS others: " + gbnsOthers);
+    System.out.println("BS others: " + bsOthers);
+    System.out.println("BMB others: " + bmbOthers);
+    System.out.println("Total: " + bgbOthers + gbnsOthers + bsOthers + bmbOthers);
+    System.out.println();
+    System.out.println("Total duplicates: " + totalDuplicates);
+    System.out.println("Total updates: " + totalUpdates);
+    System.out.println();
+    System.out.println("Union total: " + unionCollection.countDocuments());
   }
 }

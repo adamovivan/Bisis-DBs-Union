@@ -628,3 +628,36 @@ Duplicates:
       }
    }
 }
+
+Drugi cameFrom:
+
+{
+   cameFrom: "gbns",
+   duplicates:{
+      $elemMatch:{
+         name:"bmb"
+      }
+   }
+}
+
+
+Vise baza:
+
+{
+   $and:[
+      {
+         duplicates:{
+            $elemMatch:{
+               name:"gbns"
+            }
+         }
+      },
+     {
+         duplicates:{
+            $elemMatch:{
+               name:"bmb"
+            }
+         }
+      }
+   ]
+}

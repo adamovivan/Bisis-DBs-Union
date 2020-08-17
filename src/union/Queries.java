@@ -98,4 +98,44 @@ public class Queries {
             )
           )
       );
+
+  public static Bson queryNotIsbnNotIssnNotTitle =
+      nor(
+        elemMatch(
+            FIELDS,
+            and(
+                eq(NAME, _010),
+                elemMatch(
+                    SUBFIELDS,
+                    and(
+                        eq(NAME, _a)
+                    )
+                )
+            )
+        ),
+        elemMatch(
+            FIELDS,
+            and(
+                eq(NAME, _011),
+                elemMatch(
+                    SUBFIELDS,
+                    and(
+                        eq(NAME, _a)
+                    )
+                )
+            )
+        ),
+        elemMatch(
+            FIELDS,
+            and(
+                eq(NAME, _200),
+                elemMatch(
+                    SUBFIELDS,
+                    and(
+                        eq(NAME, _a)
+                    )
+                )
+            )
+        )
+      );
 }
