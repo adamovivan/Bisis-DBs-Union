@@ -16,8 +16,10 @@ import util.Logger;
 import util.RecordUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
@@ -36,6 +38,7 @@ public class FullMode {
   private MongoCollection<Record> gbnsCollection;
   private MongoCollection<Record> bsCollection;
   private MongoCollection<Record> bmbCollection;
+  private Map<String, Integer> recordKeys;
   private int unionCurrentRecordId;
   private int totalDuplicates;
   private int totalUpdates;
@@ -56,6 +59,7 @@ public class FullMode {
     bsCollection = database.getCollection(BS_RECORDS, Record.class);
     bmbCollection = database.getCollection(BMB_RECORDS, Record.class);
 
+    recordKeys = new HashMap<>();
     unionCurrentRecordId = 1;
     totalDuplicates = 0;
     totalUpdates = 0;
@@ -103,7 +107,8 @@ public class FullMode {
 
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
-      addRecordToBatch(bgbRecord, mergeKey, batchRecords);
+      addRecordToBatch(bgbRecord, batchRecords);
+      recordKeys.put(mergeKey, bgbRecord.getRecordID());
 
       if (batchRecords.size() >= BATCH_SIZE) {
         insertToUnionCollection(batchRecords);
@@ -145,6 +150,7 @@ public class FullMode {
     List<Record> recordsToUpdate = new ArrayList<>();
     List<Integer> idsToRemove = new ArrayList<>();
     Set<String> dbToMergeKeys = new HashSet<>();
+    Map<String, Integer> dbToMergeKeysNewRecords = new HashMap<>();
     int duplicates = 0;
     while (dbToMergeCursor.hasNext()) {
 
@@ -158,13 +164,14 @@ public class FullMode {
         dbToMergeKeys.add(mergeKey);
       }
 
-      Record unionRecord = gson.fromJson(redisClient.get(mergeKey), Record.class);
+      Integer recordId = recordKeys.get(mergeKey);
 
-      if (unionRecord == null) {
+      if (recordId == null) {
         // exists in dbToMerge, but not in union
         dbToMergeRecord.setCameFrom(dbToMerge);
         Union.setDefaultMetadata(dbToMergeRecord);
-        addRecordToBatch(dbToMergeRecord, mergeKey, batchRecords);
+        addRecordToBatch(dbToMergeRecord, batchRecords);
+        dbToMergeKeysNewRecords.put(mergeKey, dbToMergeRecord.getRecordID());
 
         if (batchRecords.size() >= BATCH_SIZE) {
           insertToUnionCollection(batchRecords);
@@ -173,6 +180,8 @@ public class FullMode {
         newRecordsCnt += 1;
         continue;
       }
+
+      Record unionRecord = gson.fromJson(redisClient.get(String.valueOf(recordId)), Record.class);
 
       // exists in both dbToMerge and union
       Union.mergeRecords(unionRecord, dbToMergeRecord);
@@ -194,6 +203,9 @@ public class FullMode {
     insertToUnionCollection(batchRecords);
     updateUnionCollection(recordsToUpdate, idsToRemove);
 
+    // merge keys
+    recordKeys.putAll(dbToMergeKeysNewRecords);
+
     totalDuplicates += duplicates;
     totalUpdates += updateCnt;
 
@@ -209,12 +221,12 @@ public class FullMode {
     logger.separator();
   }
 
-  private void addRecordToBatch(Record record, String mergeKey, List<Record> batch) {
+  private void addRecordToBatch(Record record, List<Record> batch) {
     record.setRecordID(unionCurrentRecordId);
     batch.add(record);
     unionCurrentRecordId += 1;
 
-    redisClient.set(mergeKey, gson.toJson(record));
+    redisClient.set(String.valueOf(record.getRecordID()), gson.toJson(record));
   }
 
   private void insertToUnionCollection(List<Record> records) {
