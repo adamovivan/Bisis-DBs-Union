@@ -85,6 +85,7 @@ public class Union {
     record.setCreationDate(new Date());
     record.setLastModifiedDate(new Date());
     record.setModifier(null);
+    record.setCreator(null);
   }
 
   public static void addDuplicate(Record record, String duplicateName, int duplicateRn) {

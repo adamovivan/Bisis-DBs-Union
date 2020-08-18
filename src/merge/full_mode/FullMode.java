@@ -107,6 +107,7 @@ public class FullMode {
 
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
+      Union.setDefaultMetadata(bgbRecord);
       addRecordToBatch(bgbRecord, batchRecords);
       recordKeys.put(mergeKey, bgbRecord.getRecordID());
 
