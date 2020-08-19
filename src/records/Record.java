@@ -21,6 +21,10 @@ public class Record {
    */
   private int recordID;
   /**
+   * record identifier from origin
+   */
+  private int originRecordID;
+  /**
    * id in books_common collection
    */
   private Integer commonBookUid;

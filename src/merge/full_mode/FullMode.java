@@ -97,8 +97,8 @@ public class FullMode {
     merge(MergeType.TITLE, Queries.queryTitleNotIsbnNotIssn());
 
     totalTime = System.currentTimeMillis() - startTotal;
-    flushRedis();
     printResults();
+    flushRedis();
   }
 
   private void merge(MergeType mergeType, Bson query) {
@@ -128,6 +128,7 @@ public class FullMode {
 
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
+      bgbRecord.setOriginRecordID(bgbRecord.getRecordID());
       Union.setDefaultMetadata(bgbRecord);
       addRecordToBatch(bgbRecord, batchRecords);
       recordKeys.put(mergeKey, bgbRecord.getRecordID());
@@ -192,6 +193,7 @@ public class FullMode {
         // exists in dbToMerge, but not in union
         dbToMergeRecord.setCameFrom(dbToMerge);
         Union.setDefaultMetadata(dbToMergeRecord);
+        dbToMergeRecord.setOriginRecordID(dbToMergeRecord.getRecordID());
         addRecordToBatch(dbToMergeRecord, batchRecords);
         dbToMergeKeysNewRecords.put(mergeKey, dbToMergeRecord.getRecordID());
 
@@ -208,7 +210,7 @@ public class FullMode {
       // exists in both dbToMerge and union
       Union.mergeRecords(unionRecord, dbToMergeRecord);
       Union.setDefaultMetadata(unionRecord);
-      Union.addDuplicate(unionRecord, dbToMerge, dbToMergeRecord.getRn());
+      Union.addDuplicate(unionRecord, dbToMerge, dbToMergeRecord.getRecordID());
 
       recordsToUpdate.add(unionRecord);
       idsToRemove.add(unionRecord.getRecordID());

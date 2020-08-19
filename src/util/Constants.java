@@ -1,5 +1,9 @@
 package util;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+
 public class Constants {
 
   private Constants() {}
@@ -9,6 +13,7 @@ public class Constants {
   public static final int REDIS_PORT = 6379;
   public static final int REDIS_TIMEOUT = 120000;
   public static final String DATABASE_NAME = "bisis";
+  public static final String DATE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSS";
 
   public static final String BGB = "bgb";
   public static final String GBNS = "gbns";
@@ -43,6 +48,8 @@ public class Constants {
   public static final String CREATION_DATE = "creationDate";
   public static final String MODIFIER = "modifier";
   public static final String LAST_MODIFIED_DATE = "lastModifiedDate";
+  public static final String ORIGIN_RECORD_ID = "originRecordID";
+  public static final String CAME_FROM = "cameFrom";
 
   public static final String ISBN_PREFIX_978 = "978";
   public static final int ISBN_PREFIX_978_LENGTH = 3;

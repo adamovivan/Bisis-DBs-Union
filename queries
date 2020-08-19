@@ -745,3 +745,27 @@ Datum:
       $gt: ISODate("2006-06-07T00:00:00Z")
    }
 }
+
+
+################################
+
+
+Find record in union db
+
+
+{
+   $or:[
+      {
+         duplicates:{
+            $elemMatch:{
+               name:"gbns",
+               originRecordID:1288
+            }
+         }
+      },
+      {
+         cameFrom:"gbns",
+         originRecordID:1288
+      }
+   ]
+}

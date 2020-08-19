@@ -6,23 +6,16 @@ import static com.mongodb.client.model.Filters.gt;
 import static com.mongodb.client.model.Filters.nor;
 import static com.mongodb.client.model.Filters.not;
 import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.or;
+import static util.Constants.*;
+
+import lombok.SneakyThrows;
 import org.bson.conversions.Bson;
 
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
-
-import static util.Constants.CONTENT;
-import static util.Constants.FIELDS;
-import static util.Constants.LAST_MODIFIED_DATE;
-import static util.Constants.NAME;
-import static util.Constants.SUBFIELDS;
-import static util.Constants._200;
-import static util.Constants._a;
-import static util.Constants._010;
-import static util.Constants._011;
-
 
 public class Queries {
 
@@ -153,17 +146,25 @@ public class Queries {
             );
   }
 
+  @SneakyThrows
   public static Bson queryGreaterThanDate(String date) {
-    DateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ENGLISH);
-    try {
-      return gt(LAST_MODIFIED_DATE, format.parse(date));
-    } catch (ParseException e) {
-      e.printStackTrace();
-    }
-    return null;
+    DateFormat format = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
+    return gt(LAST_MODIFIED_DATE, format.parse(date));
   }
 
-  public static Bson queryByOriginAndRn(String origin, Integer rn) {
-    return null;
+  public static Bson queryDbNameOriginRecordId(String dbName, Integer originRecordId) {
+    return or(
+        elemMatch(
+            DUPLICATES,
+            and(
+                eq(NAME, dbName),
+                eq(ORIGIN_RECORD_ID, originRecordId)
+            )
+        ),
+        and(
+            eq(CAME_FROM, dbName),
+            eq(ORIGIN_RECORD_ID, originRecordId)
+        )
+    );
   }
 }

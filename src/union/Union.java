@@ -1,26 +1,15 @@
 package union;
 
-import org.bson.conversions.Bson;
 import records.Duplicate;
 import records.Field;
 import records.Record;
 import records.SubField;
-import records.SubSubField;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static com.mongodb.client.model.Updates.set;
-import static util.Constants.CREATION_DATE;
-import static util.Constants.CREATOR;
-import static util.Constants.DUPLICATES;
-import static util.Constants.FIELDS;
-import static util.Constants.LAST_MODIFIED_DATE;
-import static util.Constants.MODIFIER;
 
 public class Union {
 
@@ -88,40 +77,27 @@ public class Union {
     record.setCreator(null);
   }
 
-  public static void addDuplicate(Record record, String duplicateName, int duplicateRn) {
+  public static void setUpdateMetadata(Record record) {
+    record.setLastModifiedDate(new Date());
+  }
+
+  public static void addDuplicate(Record record, String duplicateName, int duplicateRecordId) {
     if (record.getDuplicates() == null) {
-      record.setDuplicates(Collections.singletonList(new Duplicate(duplicateName, duplicateRn)));
+      record.setDuplicates(Collections.singletonList(new Duplicate(duplicateName, duplicateRecordId)));
     } else {
-      record.getDuplicates().add(new Duplicate(duplicateName, duplicateRn));
+      record.getDuplicates().add(new Duplicate(duplicateName, duplicateRecordId));
     }
   }
 
-  public static List<Bson> getUpdates(Record unionRecord) {
-    List<Bson> updates = new ArrayList<>();
-    updates.add(set(DUPLICATES, unionRecord.getDuplicates()));
-    updates.add(set(FIELDS, unionRecord.getFields()));
-    updates.add(set(CREATOR, unionRecord.getCreator()));
-    updates.add(set(CREATION_DATE, unionRecord.getCreationDate()));
-    updates.add(set(MODIFIER, unionRecord.getModifier()));
-    updates.add(set(LAST_MODIFIED_DATE, unionRecord.getLastModifiedDate()));
-    return updates;
+  public static void updateDuplicate(Record record, String duplicateName, int duplicateRecordId) {
+    if (record.getDuplicates() == null) {
+      record.setDuplicates(Collections.singletonList(new Duplicate(duplicateName, duplicateRecordId)));
+    } else if (!containsDuplicate(record.getDuplicates(), duplicateName)) {
+      record.getDuplicates().add(new Duplicate(duplicateName, duplicateRecordId));
+    }
   }
 
-  private static SubField getSubField(List<SubField> subFields, char name) {
-    for (SubField subField: subFields) {
-      if (subField.getName() == name) {
-        return subField;
-      }
-    }
-    return null;
-  }
-
-  private static SubSubField getSubSubField(List<SubSubField> subSubFields, char name) {
-    for (SubSubField subSubField: subSubFields) {
-      if (subSubField.getName() == name) {
-        return subSubField;
-      }
-    }
-    return null;
+  private static boolean containsDuplicate(List<Duplicate> duplicates, String dbName) {
+    return duplicates.stream().anyMatch(duplicate -> duplicate.getName().equals(dbName));
   }
 }

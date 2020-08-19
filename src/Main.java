@@ -3,6 +3,7 @@ import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import merge.full_mode.FullMode;
+import merge.incremental_mode.IncrementalMode;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import redis.clients.jedis.Jedis;
@@ -28,7 +29,10 @@ class Main {
 
         MongoClient mongoClient = MongoClients.create(settings);
 
-        FullMode fullMode = new FullMode(mongoClient, jedis);
-        fullMode.start();
+//        FullMode fullMode = new FullMode(mongoClient, jedis);
+//        fullMode.start();
+
+        IncrementalMode incrementalMode = new IncrementalMode(mongoClient);
+        incrementalMode.start();
     }
 }

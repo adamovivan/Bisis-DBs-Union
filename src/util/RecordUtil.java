@@ -5,14 +5,7 @@ import union.MergeType;
 
 public class RecordUtil {
 
-  private RecordUtil() {}
-
-  public static String getMergeTypeValue(Record record, MergeType mergeType) {
-    if (mergeType == MergeType.ISBN) {
-      return record.getISBN();
-    } else {
-      return record.getISSN();
-    }
+  private RecordUtil() {
   }
 
   public static String createRecordKey(Record record) {
@@ -33,6 +26,7 @@ public class RecordUtil {
 
     String separator = "#";
 
-    return isbnTransformed + separator + issnTransformed + separator + titleTransformed + separator + publisherTransformed + separator + authorTransformed + separator + releaseYear;
+    return isbnTransformed + separator + issnTransformed + separator + titleTransformed + separator
+        + publisherTransformed + separator + authorTransformed + separator + releaseYear;
   }
 }

@@ -9,5 +9,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Duplicate {
   private String name;
-  private int recordID;
+  private int originRecordID;
 }
