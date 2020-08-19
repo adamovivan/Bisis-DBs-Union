@@ -9,6 +9,7 @@ import org.bson.conversions.Bson;
 import records.Record;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
+import sun.rmi.server.InactiveGroupException;
 import union.MergeType;
 import union.Queries;
 import union.Union;
@@ -64,16 +65,36 @@ public class FullMode {
     totalDuplicates = 0;
     totalUpdates = 0;
 
+//    System.out.println(bgbCollection.countDocuments(Queries.queryGreaterThanDate("2019-10-24T00:00:00.000Z")));
+
+//    Map<Integer, Integer> map = new HashMap<>();
+
+//    Set<Integer> rns = new HashSet<>();
+//
+//    MongoCursor<Record> bgbCursor = bsCollection.find().cursor();
+//
+//    while (bgbCursor.hasNext()) {
+//      Record record = bgbCursor.next();
+//      Integer key = record.getRecordID();
+//      if(rns.contains(key)) {
+//        System.out.println(key);
+//      }
+//      else {
+//        rns.add(key);
+//      }
+//
+//    }
+//    System.out.println(rns.size());
     long startTotal = System.currentTimeMillis();
 
     // isbn merge
-    merge(MergeType.ISBN, Queries.queryIsbn);
+    merge(MergeType.ISBN, Queries.queryIsbn());
 
     // issn merge
-    merge(MergeType.ISSN, Queries.queryIssnNotIsbn);
+    merge(MergeType.ISSN, Queries.queryIssnNotIsbn());
 
     // title merge
-    merge(MergeType.TITLE, Queries.queryTitleNotIsbnNotIssn);
+    merge(MergeType.TITLE, Queries.queryTitleNotIsbnNotIssn());
 
     totalTime = System.currentTimeMillis() - startTotal;
     flushRedis();
@@ -278,10 +299,10 @@ public class FullMode {
     long bsTotal = bsCollection.countDocuments();
     long bmbTotal = bmbCollection.countDocuments();
 
-    long bgbOthers = bgbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
-    long gbnsOthers = gbnsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
-    long bsOthers = bsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
-    long bmbOthers = bmbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle);
+    long bgbOthers = bgbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
+    long gbnsOthers = gbnsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
+    long bsOthers = bsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
+    long bmbOthers = bmbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
 
     System.out.println("\nTotal time: " + totalTime + "ms\n");
     System.out.println("BGB total: " + bgbTotal);

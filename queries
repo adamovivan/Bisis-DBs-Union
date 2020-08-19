@@ -271,6 +271,78 @@ Dokumenti koji nemaju ni isbn, ni issn, ni naslov:
 
 ######################
 
+
+Dokumenti koji imaju isbn, issn, naslov, izdavaca i godinu izdanja:
+
+{
+   $and:[
+      {
+         fields:{
+            $elemMatch:{
+               name:"010",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"011",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"200",
+               subfields:{
+                  $elemMatch:{
+                     name:"a"
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"210",
+               subfields:{
+                  $elemMatch:{
+                     name:"c"
+                  }
+               }
+            }
+         }
+      },
+      {
+         fields:{
+            $elemMatch:{
+               name:"210",
+               subfields:{
+                  $elemMatch:{
+                     name:"d"
+                  }
+               }
+            }
+         }
+      }
+   ]
+}
+
+
+######################
+
+
 Dokumenti koji nemaju ni isbn, ni issn, ni naslov, ni izdavaca, ni godinu izdanja:
 
 
