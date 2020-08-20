@@ -5,11 +5,13 @@ import org.bson.codecs.pojo.annotations.BsonIgnore;
 
 import static util.Constants.*;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
 public class Record {
+
+  private String mergeKey;
 
   private String cameFrom;
   /**
@@ -47,11 +49,11 @@ public class Record {
   /**
    * record creation date
    */
-  private Date creationDate;
+  private LocalDateTime creationDate;
   /**
    * last modification date
    */
-  private Date lastModifiedDate;
+  private LocalDateTime lastModifiedDate;
   /**
    * list of modifications
    */

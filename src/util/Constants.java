@@ -50,6 +50,7 @@ public class Constants {
   public static final String LAST_MODIFIED_DATE = "lastModifiedDate";
   public static final String ORIGIN_RECORD_ID = "originRecordID";
   public static final String CAME_FROM = "cameFrom";
+  public static final String MERGE_KEY = "mergeKey";
 
   public static final String ISBN_PREFIX_978 = "978";
   public static final int ISBN_PREFIX_978_LENGTH = 3;

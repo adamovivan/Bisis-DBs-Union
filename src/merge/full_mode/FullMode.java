@@ -9,7 +9,6 @@ import org.bson.conversions.Bson;
 import records.Record;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.exceptions.JedisConnectionException;
-import sun.rmi.server.InactiveGroupException;
 import union.MergeType;
 import union.Queries;
 import union.Union;
@@ -65,26 +64,6 @@ public class FullMode {
     totalDuplicates = 0;
     totalUpdates = 0;
 
-//    System.out.println(bgbCollection.countDocuments(Queries.queryGreaterThanDate("2019-10-24T00:00:00.000Z")));
-
-//    Map<Integer, Integer> map = new HashMap<>();
-
-//    Set<Integer> rns = new HashSet<>();
-//
-//    MongoCursor<Record> bgbCursor = bsCollection.find().cursor();
-//
-//    while (bgbCursor.hasNext()) {
-//      Record record = bgbCursor.next();
-//      Integer key = record.getRecordID();
-//      if(rns.contains(key)) {
-//        System.out.println(key);
-//      }
-//      else {
-//        rns.add(key);
-//      }
-//
-//    }
-//    System.out.println(rns.size());
     long startTotal = System.currentTimeMillis();
 
     // isbn merge
@@ -126,6 +105,7 @@ public class FullMode {
         bgbRecordKeys.add(mergeKey);
       }
 
+      bgbRecord.setMergeKey(mergeKey);
       bgbRecord.setCameFrom(BGB);
       bgbRecord.setDuplicates(new ArrayList<>());
       bgbRecord.setOriginRecordID(bgbRecord.getRecordID());
@@ -191,6 +171,7 @@ public class FullMode {
 
       if (recordId == null) {
         // exists in dbToMerge, but not in union
+        dbToMergeRecord.setMergeKey(mergeKey);
         dbToMergeRecord.setCameFrom(dbToMerge);
         Union.setDefaultMetadata(dbToMergeRecord);
         dbToMergeRecord.setOriginRecordID(dbToMergeRecord.getRecordID());

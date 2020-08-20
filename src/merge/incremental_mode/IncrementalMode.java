@@ -6,6 +6,7 @@ import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import org.bson.conversions.Bson;
+import records.Duplicate;
 import records.Record;
 import union.MergeType;
 import union.Queries;
@@ -13,7 +14,6 @@ import union.Union;
 import util.Logger;
 import util.RecordUtil;
 
-import java.sql.SQLOutput;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.HashSet;
@@ -62,26 +62,25 @@ public class IncrementalMode {
 
     totalTime = System.currentTimeMillis() - startTotal;
 
-    //    for (String database : dbsToMerge) {
-    //      mergeWithUnionDatabase(database, getCollectionByDatabaseName(database));
-    //    }
-    mergeWithUnionDatabase(GBNS, gbnsCollection);
-    //    printResults();
+        for (String database : dbsToMerge) {
+          mergeWithUnionDatabase(database, getCollectionByDatabaseName(database));
+        }
+//    mergeWithUnionDatabase(GBNS, gbnsCollection);
+    printResults();
   }
 
   private void mergeWithUnionDatabase(String dbToMerge, MongoCollection<Record> dbToMergeCollection) {
 
     long unionTotalBefore = unionCollection.countDocuments();
-    Bson query = Queries.queryGreaterThanDate(lastUpdate.toString());
+    Bson query = Queries.queryCreationDate(lastUpdate.toString());
     Logger logger = new Logger(dbToMerge, MergeType.INCREMENTAL);
     long mergeStart = System.currentTimeMillis();
     logger.newLine();
     logger.info("Merging records -> START");
-    System.out.println(lastUpdate);
-    System.out.println(dbToMergeCollection.countDocuments(query));
+//    System.out.println(lastUpdate);
+//    System.out.println(dbToMergeCollection.countDocuments(query));
 
-    MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(Queries.queryGreaterThanDate(lastUpdate.toString()))
-                                                     .cursor();
+    MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).cursor();
 
     Set<String> dbToMergeKeys = new HashSet<>();
 
@@ -100,13 +99,13 @@ public class IncrementalMode {
         dbToMergeKeys.add(mergeKey);
       }
 
-      MongoCursor<Record> unionCursor = unionCollection.find(Queries.queryDbNameOriginRecordId(dbToMerge, dbToMergeRecord.getRecordID())).cursor();
+      MongoCursor<Record> unionCursor = unionCollection.find(Queries.queryMergeKey(mergeKey)).cursor();
+//      System.out.println("MERGE KEY CNT: " + unionCollection.countDocuments(Queries.queryMergeKey(mergeKey)));
+//      System.out.println("MK: " + mergeKey);
 
-      if (unionCollection.countDocuments(Queries.queryDbNameOriginRecordId(dbToMerge, dbToMergeRecord.getRecordID())) > 1) {
-        System.out.println("NOT UNIQUE!!! " + dbToMergeRecord.getRecordID());
-      }
       if (!unionCursor.hasNext()) {
         // exists in dbToMerge, but not in union
+        dbToMergeRecord.setMergeKey(mergeKey);
         dbToMergeRecord.setCameFrom(dbToMerge);
         Union.setDefaultMetadata(dbToMergeRecord);
 
@@ -123,9 +122,14 @@ public class IncrementalMode {
       // exists in both dbToMerge and union
       Record unionRecord = unionCursor.next();
 
-      Union.mergeRecords(unionRecord, dbToMergeRecord);     // TODO add all form dbToMergeRecord to unionRecord
+      if (isAlreadyAdded(unionRecord, dbToMerge)) {
+        duplicates += 1;
+        continue;
+      }
+
+      Union.mergeRecords(unionRecord, dbToMergeRecord);
       Union.setUpdateMetadata(unionRecord);
-      Union.updateDuplicate(unionRecord, dbToMerge, dbToMergeRecord.getRecordID());
+      Union.updateDuplicates(unionRecord, dbToMerge, dbToMergeRecord.getRecordID());
 
       // update
       unionCollection.deleteOne(Filters.eq(RECORD_ID, unionRecord.getRecordID()));
@@ -133,8 +137,6 @@ public class IncrementalMode {
 
       updateCnt += 1;
     }
-//    insertToUnionCollection(batchRecords);
-//    updateUnionCollection(recordsToUpdate, idsToRemove);
 
     totalDuplicates += duplicates;
     totalUpdates += updateCnt;
@@ -150,6 +152,23 @@ public class IncrementalMode {
     logger.info("Union update: " + updateCnt);
     logger.info("Union total: " + unionCollection.countDocuments());
     logger.separator();
+  }
+
+  private boolean isAlreadyAdded(Record unionRecord, String dbToMerge) {
+    if (unionRecord.getCameFrom().equals(dbToMerge)) {
+      return true;
+    }
+
+    if (unionRecord.getDuplicates() == null) {
+      return false;
+    }
+
+    for (Duplicate duplicate: unionRecord.getDuplicates()) {
+      if (duplicate.getName().equals(dbToMerge)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private MongoCollection<Record> getCollectionByDatabaseName(String database) {
@@ -184,12 +203,6 @@ public class IncrementalMode {
     System.out.println("BS total: " + bsTotal);
     System.out.println("BMB total: " + bmbTotal);
     System.out.println("Total: " + (bgbTotal + gbnsTotal + bsTotal + bmbTotal));
-    System.out.println();
-    //    System.out.println("BGB others: " + bgbOthers);
-    //    System.out.println("GBNS others: " + gbnsOthers);
-    //    System.out.println("BS others: " + bsOthers);
-    //    System.out.println("BMB others: " + bmbOthers);
-    //    System.out.println("Total: " + (bgbOthers + gbnsOthers + bsOthers + bmbOthers));
     System.out.println();
     System.out.println("Total duplicates: " + totalDuplicates);
     System.out.println("Total updates: " + totalUpdates);

@@ -3,10 +3,12 @@ package union;
 import records.Duplicate;
 import records.Field;
 import records.Record;
+import records.RecordModification;
 import records.SubField;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,12 +27,12 @@ public class Union {
   }
 
   private static void mergeFields(Record mainRecord, Record secondaryRecord) {
-    List<Field> mainRecFields = mainRecord.getFields();
+    List<Field> mainRecordFields = mainRecord.getFields();
 
     Set<String> fieldsSet = new HashSet<>();    // field names
 
     // main record fields
-    for (Field mainField: mainRecFields) {
+    for (Field mainField: mainRecordFields) {
       fieldsSet.add(mainField.getName());
 
       Field secField = getField(secondaryRecord.getFields(), mainField.getName());
@@ -45,7 +47,7 @@ public class Union {
       for (SubField mainSubField: mainSubFields) {
         subfieldsSet.add(mainSubField.getName());
       }
-      // adds subfields from secondary field that does not exist in main field
+      // adds subfields from secondary field which do not exist in main field
       for (SubField secSubField: secField.getSubfields()) {
         if (!subfieldsSet.contains(secSubField.getName())){
           mainSubFields.add(secSubField);
@@ -53,13 +55,40 @@ public class Union {
       }
     }
 
-    // secondary record fields, adds fields that does not exist in main record
+    // secondary record fields, adds fields which do not exist in main record
     for (Field secField: secondaryRecord.getFields()) {
       if (!fieldsSet.contains(secField.getName())) {
-        mainRecFields.add(secField);
+        mainRecordFields.add(secField);
       }
     }
   }
+
+//  private static void updateRecord(Record recordToUpdate, Record record, LocalDateTime lastUpdate) {
+//    recordToUpdate.setCommonBookUid(record.getCommonBookUid());
+//    recordToUpdate.setPubType(record.getPubType());
+//    recordToUpdate.setFields(record.getFields());
+//
+//    List<RecordModification> recordModifications;
+//
+//    if (recordToUpdate.getRecordModifications() == null) {
+//      recordModifications = new ArrayList<>();
+//    } else {
+//      recordModifications = recordToUpdate.getRecordModifications();
+//    }
+//
+//    // update only newer modifications
+//    record.getRecordModifications().forEach(recordModification -> {
+//      if (recordModification.getDateOfModification().compareTo(lastUpdate) > 0) {
+//        recordModifications.add(recordModification);
+//      }
+//    });
+//
+//    recordToUpdate.setRecordModifications(recordModifications);
+//
+//    recordToUpdate.setLastModifiedDate(LocalDateTime.now());
+//    recordToUpdate.setInUseBy(record.getInUseBy());
+//    re
+//  }
 
   private static Field getField(List<Field> fields, String name) {
     for (Field field: fields) {
@@ -71,14 +100,14 @@ public class Union {
   }
 
   public static void setDefaultMetadata(Record record) {
-    record.setCreationDate(new Date());
-    record.setLastModifiedDate(new Date());
+    record.setCreationDate(LocalDateTime.now());
+    record.setLastModifiedDate(LocalDateTime.now());
     record.setModifier(null);
     record.setCreator(null);
   }
 
   public static void setUpdateMetadata(Record record) {
-    record.setLastModifiedDate(new Date());
+    record.setLastModifiedDate(LocalDateTime.now());
   }
 
   public static void addDuplicate(Record record, String duplicateName, int duplicateRecordId) {
@@ -89,7 +118,7 @@ public class Union {
     }
   }
 
-  public static void updateDuplicate(Record record, String duplicateName, int duplicateRecordId) {
+  public static void updateDuplicates(Record record, String duplicateName, int duplicateRecordId) {
     if (record.getDuplicates() == null) {
       record.setDuplicates(Collections.singletonList(new Duplicate(duplicateName, duplicateRecordId)));
     } else if (!containsDuplicate(record.getDuplicates(), duplicateName)) {

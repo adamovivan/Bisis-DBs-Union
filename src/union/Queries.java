@@ -147,24 +147,65 @@ public class Queries {
   }
 
   @SneakyThrows
-  public static Bson queryGreaterThanDate(String date) {
+  public static Bson queryCreationDate(String date) {
     DateFormat format = new SimpleDateFormat(DATE_FORMAT, Locale.ENGLISH);
-    return gt(LAST_MODIFIED_DATE, format.parse(date));
+    return gt(CREATION_DATE, format.parse(date));
   }
 
-  public static Bson queryDbNameOriginRecordId(String dbName, Integer originRecordId) {
-    return or(
-        elemMatch(
-            DUPLICATES,
+  public static Bson queryMergeKey(String mergeKey) {
+    return eq(MERGE_KEY, mergeKey);
+  }
+
+  public static Bson queryMergeKeyNotDbName(String dbName,String mergeKey) {
+    return and(
+        eq(MERGE_KEY, mergeKey),
+        or(
+            elemMatch(
+                DUPLICATES,
+                and(
+                    eq(NAME, dbName)
+                )
+            ),
             and(
-                eq(NAME, dbName),
-                eq(ORIGIN_RECORD_ID, originRecordId)
+                eq(CAME_FROM, dbName)
             )
-        ),
-        and(
-            eq(CAME_FROM, dbName),
-            eq(ORIGIN_RECORD_ID, originRecordId)
         )
+    );
+  }
+
+//  public static Bson queryMergeKeyNotDbName(String dbName,String mergeKey) {
+//    return and(
+//        eq(MERGE_KEY, mergeKey),
+//        nor(
+//            elemMatch(
+//                DUPLICATES,
+//                and(
+//                    eq(NAME, dbName)
+//                )
+//            ),
+//            and(
+//                eq(CAME_FROM, dbName)
+//            )
+//        )
+//    );
+//  }
+
+  public static Bson queryMergeKeyNotDbNameNotOriginRecordId(String dbName, Integer originRecordId, String mergeKey) {
+    return and(
+            eq(MERGE_KEY, mergeKey),
+            nor(
+              elemMatch(
+                  DUPLICATES,
+                  and(
+                      eq(NAME, dbName),
+                      eq(ORIGIN_RECORD_ID, originRecordId)
+                  )
+              ),
+              and(
+                  eq(CAME_FROM, dbName),
+                  eq(ORIGIN_RECORD_ID, originRecordId)
+              )
+            )
     );
   }
 }
