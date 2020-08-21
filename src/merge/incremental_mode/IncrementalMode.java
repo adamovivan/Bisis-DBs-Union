@@ -192,11 +192,6 @@ public class IncrementalMode {
     long bsTotal = bsCollection.countDocuments();
     long bmbTotal = bmbCollection.countDocuments();
 
-    //    long bgbOthers = bgbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
-    //    long gbnsOthers = gbnsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
-    //    long bsOthers = bsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
-    //    long bmbOthers = bmbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
-
     System.out.println("\nTotal time: " + totalTime + "ms\n");
     System.out.println("BGB total: " + bgbTotal);
     System.out.println("GBNS total: " + gbnsTotal);

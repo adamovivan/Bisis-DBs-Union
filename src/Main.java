@@ -29,10 +29,10 @@ class Main {
 
         MongoClient mongoClient = MongoClients.create(settings);
 
-//        FullMode fullMode = new FullMode(mongoClient, jedis);
-//        fullMode.start();
+        FullMode fullMode = new FullMode(mongoClient, jedis);
+        fullMode.start();
 
-        IncrementalMode incrementalMode = new IncrementalMode(mongoClient);
-        incrementalMode.start();
+//        IncrementalMode incrementalMode = new IncrementalMode(mongoClient);
+//        incrementalMode.start();
     }
 }

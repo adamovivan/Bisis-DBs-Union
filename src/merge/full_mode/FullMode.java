@@ -130,7 +130,7 @@ public class FullMode {
     logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
     logger.info("BGB duplicates: " + bgbDuplicates);
     logger.info("Union new BGB records: " + bgbCnt);
-    logger.info("Union total: " + bgbCollection.countDocuments());
+    logger.info("Union total: " + unionCollection.countDocuments());
     logger.separator();
 
     for (String database : dbsToMerge) {
