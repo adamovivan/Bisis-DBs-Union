@@ -4,12 +4,14 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
+import merge.MergeMode;
 import org.bson.conversions.Bson;
 import records.Duplicate;
 import records.Record;
 import union.MergeType;
 import union.Queries;
 import union.Union;
+import util.Constants;
 import util.Logger;
 import util.RecordUtil;
 
@@ -20,6 +22,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.NoSuchElementException;
@@ -44,6 +47,7 @@ public class IncrementalMode {
   private int totalDuplicates;
   private int totalUpdates;
   private long totalTime;
+  private Logger logger;
 
   public IncrementalMode(MongoClient mongoClient) {
     this.mongoClient = mongoClient;
@@ -66,6 +70,10 @@ public class IncrementalMode {
     totalDuplicates = 0;
     totalUpdates = 0;
 
+    String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constants.DATE_TIME_FORMAT));
+    String executionLogsFile = MergeMode.INCREMENTAL.name().toLowerCase() + "_" + currentTime + TXT_EXTENSION;
+    logger = new Logger(executionLogsFile);
+
     long startTotal = System.currentTimeMillis();
 
     for (String database : dbsToMerge) {
@@ -75,16 +83,17 @@ public class IncrementalMode {
     totalTime = System.currentTimeMillis() - startTotal;
     saveLastUpdate();
     printResults();
+    logger.closeWriter();
   }
 
   private void mergeWithUnionDatabase(String dbToMerge, MongoCollection<Record> dbToMergeCollection) {
 
     long unionTotalBefore = unionCollection.countDocuments();
     Bson query = Queries.queryCreationDate(lastUpdate.toString());
-    Logger logger = new Logger(dbToMerge, MergeType.INCREMENTAL);
+    logger.setDatebaseAndMergeType(dbToMerge, MergeType.INCREMENTAL);
     long mergeStart = System.currentTimeMillis();
     logger.newLine();
-    logger.info("Merging records -> START");
+    logger.mergeInfo("Merging records -> START");
 
     MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).cursor();
 
@@ -146,14 +155,14 @@ public class IncrementalMode {
 
     long mergeEnd = System.currentTimeMillis();
     long mergeTimeElapsed = mergeEnd - mergeStart;
-    logger.info("Merging records -> END -> Time: " + mergeTimeElapsed);
+    logger.mergeInfo("Merging records -> END -> Time: " + mergeTimeElapsed);
     logger.newLine();
-    logger.info("Union total before: " + unionTotalBefore);
-    logger.info("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + dbToMergeCollection.countDocuments(query));
-    logger.info("Duplicates (skipped): " + duplicates);
-    logger.info("Union new [" + dbToMerge.toUpperCase() + "] records: " + newRecordsCnt);
-    logger.info("Union update: " + updateCnt);
-    logger.info("Union total: " + unionCollection.countDocuments());
+    logger.mergeInfo("Union total before: " + unionTotalBefore);
+    logger.mergeInfo("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + dbToMergeCollection.countDocuments(query));
+    logger.mergeInfo("Duplicates (skipped): " + duplicates);
+    logger.mergeInfo("Union new [" + dbToMerge.toUpperCase() + "] records: " + newRecordsCnt);
+    logger.mergeInfo("Union update: " + updateCnt);
+    logger.mergeInfo("Union total: " + unionCollection.countDocuments());
     logger.separator();
   }
 
@@ -200,11 +209,11 @@ public class IncrementalMode {
         return LocalDateTime.parse(lastUpdate);
       }
     } catch (IOException | DateTimeParseException e) {
-      System.out.println("[" + LocalDateTime.now() + "] " + e.getMessage());
-      System.out.println("[" + LocalDateTime.now() + "] Current time is considered as last update.");
+      logger.info("[" + LocalDateTime.now() + "] " + e.getMessage());
+      logger.info("[" + LocalDateTime.now() + "] Current time is considered as last update.");
     }
 
-    System.out.println("[" + LocalDateTime.now() + "] File " + LAST_UPDATE_FILE_PATH
+    logger.info("[" + LocalDateTime.now() + "] File " + LAST_UPDATE_FILE_PATH
         + " is empty. Current time is considered as last update.");
     return LocalDateTime.now();
   }
@@ -226,16 +235,16 @@ public class IncrementalMode {
     long bsTotal = bsCollection.countDocuments();
     long bmbTotal = bmbCollection.countDocuments();
 
-    System.out.println("\nTotal time: " + totalTime + "ms\n");
-    System.out.println("BGB total: " + bgbTotal);
-    System.out.println("GBNS total: " + gbnsTotal);
-    System.out.println("BS total: " + bsTotal);
-    System.out.println("BMB total: " + bmbTotal);
-    System.out.println("Total: " + (bgbTotal + gbnsTotal + bsTotal + bmbTotal));
-    System.out.println();
-    System.out.println("Total duplicates: " + totalDuplicates);
-    System.out.println("Total updates: " + totalUpdates);
-    System.out.println();
-    System.out.println("Union total: " + unionCollection.countDocuments());
+    logger.info("\nTotal time: " + totalTime + "ms\n");
+    logger.info("BGB total: " + bgbTotal);
+    logger.info("GBNS total: " + gbnsTotal);
+    logger.info("BS total: " + bsTotal);
+    logger.info("BMB total: " + bmbTotal);
+    logger.info("Total: " + (bgbTotal + gbnsTotal + bsTotal + bmbTotal));
+    logger.newLine();
+    logger.info("Total duplicates: " + totalDuplicates);
+    logger.info("Total updates: " + totalUpdates);
+    logger.newLine();
+    logger.info("Union total: " + unionCollection.countDocuments());
   }
 }

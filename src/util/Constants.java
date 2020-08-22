@@ -11,6 +11,9 @@ public class Constants {
   public static final String DATABASE_NAME = "bisis";
 
   public static final String LAST_UPDATE_FILE_PATH = "last_update";
+  public static final String LOGS_PATH = "logs";
+
+  public static final String DATE_TIME_FORMAT = "dd.MM.yyyy. HH:mm:ss";
 
   public static final String BGB = "bgb";
   public static final String GBNS = "gbns";
@@ -52,5 +55,7 @@ public class Constants {
   public static final String ISBN_PREFIX_978 = "978";
   public static final int ISBN_PREFIX_978_LENGTH = 3;
   public static final int ISBN_978_LENGTH = 13;
+
+  public static final String TXT_EXTENSION = ".txt";
 
 }

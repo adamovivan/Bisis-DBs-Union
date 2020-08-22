@@ -5,6 +5,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
+import merge.MergeMode;
 import org.bson.conversions.Bson;
 import records.Record;
 import redis.clients.jedis.Jedis;
@@ -12,9 +13,12 @@ import redis.clients.jedis.exceptions.JedisConnectionException;
 import union.MergeType;
 import union.Queries;
 import union.Union;
+import util.Constants;
 import util.Logger;
 import util.RecordUtil;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,6 +47,8 @@ public class FullMode {
   private int totalDuplicates;
   private int totalUpdates;
   private long totalTime;
+  private Logger logger;
+  private Logger duplicateRecordsLogger;
 
   public FullMode(MongoClient mongoClient, Jedis redisClient) {
     this.mongoClient = mongoClient;
@@ -64,6 +70,13 @@ public class FullMode {
     totalDuplicates = 0;
     totalUpdates = 0;
 
+    String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constants.DATE_TIME_FORMAT));
+    String executionLogsFile = MergeMode.FULL.name().toLowerCase() + "_" + currentTime + TXT_EXTENSION;
+    logger = new Logger(executionLogsFile);
+
+    String duplicateRecordsFile = DUPLICATES + "_" + currentTime + TXT_EXTENSION;
+    duplicateRecordsLogger = new Logger(duplicateRecordsFile);
+
     long startTotal = System.currentTimeMillis();
 
     // isbn merge
@@ -78,16 +91,18 @@ public class FullMode {
     totalTime = System.currentTimeMillis() - startTotal;
     printResults();
     flushRedis();
+    logger.closeWriter();
+    duplicateRecordsLogger.closeWriter();
   }
 
   private void merge(MergeType mergeType, Bson query) {
-    Logger logger = new Logger(BGB, mergeType);
+    logger.setDatebaseAndMergeType(BGB, mergeType);
 
     MongoCursor<Record> bgbCursor = bgbCollection.find(query).cursor();
 
     long keysAddingStart = System.currentTimeMillis();
     logger.newLine();
-    logger.info("Adding keys, inserting bgb records -> START");
+    logger.mergeInfo("Adding keys, inserting bgb records -> START");
 
     // inserts bgb records in union, remembers their MergeType, skips duplicates
     List<Record> batchRecords = new ArrayList<>();
@@ -100,6 +115,7 @@ public class FullMode {
 
       if (bgbRecordKeys.contains(mergeKey)) {
         bgbDuplicates += 1;
+        duplicateRecordsLogger.writeToFile(BGB + " "  + bgbRecord.getRecordID() + " " + mergeKey);
         continue;
       } else {
         bgbRecordKeys.add(mergeKey);
@@ -125,12 +141,12 @@ public class FullMode {
 
     long keysAddingEnd = System.currentTimeMillis();
     long keysAddingTimeElapsed = keysAddingEnd - keysAddingStart;
-    logger.info("Adding keys, inserting bgb records -> END -> Time: " + keysAddingTimeElapsed);
+    logger.mergeInfo("Adding keys, inserting bgb records -> END -> Time: " + keysAddingTimeElapsed);
     logger.newLine();
-    logger.info("Retrieved from BGB: " + bgbCollection.countDocuments(query));
-    logger.info("BGB duplicates: " + bgbDuplicates);
-    logger.info("Union new BGB records: " + bgbCnt);
-    logger.info("Union total: " + unionCollection.countDocuments());
+    logger.mergeInfo("Retrieved from BGB: " + bgbCollection.countDocuments(query));
+    logger.mergeInfo("BGB duplicates: " + bgbDuplicates);
+    logger.mergeInfo("Union new BGB records: " + bgbCnt);
+    logger.mergeInfo("Union total: " + unionCollection.countDocuments());
     logger.separator();
 
     for (String database : dbsToMerge) {
@@ -140,13 +156,13 @@ public class FullMode {
 
   private void mergeWithUnionDatabase(String dbToMerge, MergeType mergeType,
       MongoCollection<Record> dbToMergeCollection, Bson query) {
-    Logger logger = new Logger(dbToMerge, mergeType);
+    logger.setDatebaseAndMergeType(dbToMerge, mergeType);
 
     MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).cursor();
 
     long mergeStart = System.currentTimeMillis();
     logger.newLine();
-    logger.info("Merging records -> START");
+    logger.mergeInfo("Merging records -> START");
     int updateCnt = 0;
     int newRecordsCnt = 0;
     List<Record> batchRecords = new ArrayList<>();
@@ -162,6 +178,7 @@ public class FullMode {
 
       if (dbToMergeKeys.contains(mergeKey)) {
         duplicates += 1;
+        duplicateRecordsLogger.writeToFile(dbToMerge + " "  + dbToMergeRecord.getRecordID() + " " + mergeKey);
         continue;
       } else {
         dbToMergeKeys.add(mergeKey);
@@ -216,13 +233,13 @@ public class FullMode {
 
     long mergeEnd = System.currentTimeMillis();
     long mergeTimeElapsed = mergeEnd - mergeStart;
-    logger.info("Merging records -> END -> Time: " + mergeTimeElapsed);
+    logger.mergeInfo("Merging records -> END -> Time: " + mergeTimeElapsed);
     logger.newLine();
-    logger.info("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + dbToMergeCollection.countDocuments(query));
-    logger.info("Duplicates (skipped): " + duplicates);
-    logger.info("Union new [" + dbToMerge.toUpperCase() + "] records: " + newRecordsCnt);
-    logger.info("Union update: " + updateCnt);
-    logger.info("Union total: " + unionCollection.countDocuments());
+    logger.mergeInfo("Retrieved from [" + dbToMerge.toUpperCase() + "]: " + dbToMergeCollection.countDocuments(query));
+    logger.mergeInfo("Duplicates (skipped): " + duplicates);
+    logger.mergeInfo("Union new [" + dbToMerge.toUpperCase() + "] records: " + newRecordsCnt);
+    logger.mergeInfo("Union update: " + updateCnt);
+    logger.mergeInfo("Union total: " + unionCollection.countDocuments());
     logger.separator();
   }
 
@@ -287,22 +304,22 @@ public class FullMode {
     long bsOthers = bsCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
     long bmbOthers = bmbCollection.countDocuments(Queries.queryNotIsbnNotIssnNotTitle());
 
-    System.out.println("\nTotal time: " + totalTime + "ms\n");
-    System.out.println("BGB total: " + bgbTotal);
-    System.out.println("GBNS total: " + gbnsTotal);
-    System.out.println("BS total: " + bsTotal);
-    System.out.println("BMB total: " + bmbTotal);
-    System.out.println("Total: " + (bgbTotal + gbnsTotal + bsTotal + bmbTotal));
-    System.out.println();
-    System.out.println("BGB others: " + bgbOthers);
-    System.out.println("GBNS others: " + gbnsOthers);
-    System.out.println("BS others: " + bsOthers);
-    System.out.println("BMB others: " + bmbOthers);
-    System.out.println("Total: " + (bgbOthers + gbnsOthers + bsOthers + bmbOthers));
-    System.out.println();
-    System.out.println("Total duplicates: " + totalDuplicates);
-    System.out.println("Total updates: " + totalUpdates);
-    System.out.println();
-    System.out.println("Union total: " + unionCollection.countDocuments());
+    logger.info("\nTotal time: " + totalTime + "ms\n");
+    logger.info("BGB total: " + bgbTotal);
+    logger.info("GBNS total: " + gbnsTotal);
+    logger.info("BS total: " + bsTotal);
+    logger.info("BMB total: " + bmbTotal);
+    logger.info("Total: " + (bgbTotal + gbnsTotal + bsTotal + bmbTotal));
+    logger.newLine();
+    logger.info("BGB others: " + bgbOthers);
+    logger.info("GBNS others: " + gbnsOthers);
+    logger.info("BS others: " + bsOthers);
+    logger.info("BMB others: " + bmbOthers);
+    logger.info("Total: " + (bgbOthers + gbnsOthers + bsOthers + bmbOthers));
+    logger.newLine();
+    logger.info("Total duplicates: " + totalDuplicates);
+    logger.info("Total updates: " + totalUpdates);
+    logger.newLine();
+    logger.info("Union total: " + unionCollection.countDocuments());
   }
 }
