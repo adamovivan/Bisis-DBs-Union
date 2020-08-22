@@ -1,7 +1,6 @@
 package util;
 
 import records.Record;
-import union.MergeType;
 
 public class RecordUtil {
 

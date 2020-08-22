@@ -4,7 +4,6 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.Filters;
 import org.bson.conversions.Bson;
 import records.Duplicate;
 import records.Record;
@@ -14,13 +13,20 @@ import union.Union;
 import util.Logger;
 import util.RecordUtil;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.LocalDateTime;
-import java.time.Period;
+import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
 import static util.Constants.*;
+import static com.mongodb.client.model.Filters.eq;
 
 public class IncrementalMode {
 
@@ -32,6 +38,7 @@ public class IncrementalMode {
   private MongoCollection<Record> bsCollection;
   private MongoCollection<Record> bmbCollection;
   private LocalDateTime lastUpdate;
+  private LocalDateTime updateStartTime;
 
   private int unionCurrentRecordId;
   private int totalDuplicates;
@@ -51,7 +58,8 @@ public class IncrementalMode {
     bsCollection = mongoDatabase.getCollection(BS_RECORDS, Record.class);
     bmbCollection = mongoDatabase.getCollection(BMB_RECORDS, Record.class);
 
-    lastUpdate = LocalDateTime.now().minus(Period.ofDays(1));    // TODO change, (cron job?)
+    lastUpdate = getLastUpdate();
+    updateStartTime = LocalDateTime.now();
 
     unionCurrentRecordId = (int) unionCollection.countDocuments() + 1;
 
@@ -60,12 +68,12 @@ public class IncrementalMode {
 
     long startTotal = System.currentTimeMillis();
 
-    totalTime = System.currentTimeMillis() - startTotal;
+    for (String database : dbsToMerge) {
+      mergeWithUnionDatabase(database, getCollectionByDatabaseName(database));
+    }
 
-        for (String database : dbsToMerge) {
-          mergeWithUnionDatabase(database, getCollectionByDatabaseName(database));
-        }
-//    mergeWithUnionDatabase(GBNS, gbnsCollection);
+    totalTime = System.currentTimeMillis() - startTotal;
+    saveLastUpdate();
     printResults();
   }
 
@@ -77,8 +85,6 @@ public class IncrementalMode {
     long mergeStart = System.currentTimeMillis();
     logger.newLine();
     logger.info("Merging records -> START");
-//    System.out.println(lastUpdate);
-//    System.out.println(dbToMergeCollection.countDocuments(query));
 
     MongoCursor<Record> dbToMergeCursor = dbToMergeCollection.find(query).cursor();
 
@@ -100,8 +106,6 @@ public class IncrementalMode {
       }
 
       MongoCursor<Record> unionCursor = unionCollection.find(Queries.queryMergeKey(mergeKey)).cursor();
-//      System.out.println("MERGE KEY CNT: " + unionCollection.countDocuments(Queries.queryMergeKey(mergeKey)));
-//      System.out.println("MK: " + mergeKey);
 
       if (!unionCursor.hasNext()) {
         // exists in dbToMerge, but not in union
@@ -128,12 +132,11 @@ public class IncrementalMode {
       }
 
       Union.mergeRecords(unionRecord, dbToMergeRecord);
-      Union.setUpdateMetadata(unionRecord);
+      Union.updateMetadata(unionRecord);
       Union.updateDuplicates(unionRecord, dbToMerge, dbToMergeRecord.getRecordID());
 
       // update
-      unionCollection.deleteOne(Filters.eq(RECORD_ID, unionRecord.getRecordID()));
-      unionCollection.insertOne(unionRecord);
+      unionCollection.updateOne(eq(RECORD_ID, unionRecord.getRecordID()), Union.getUpdates(unionRecord));
 
       updateCnt += 1;
     }
@@ -163,7 +166,7 @@ public class IncrementalMode {
       return false;
     }
 
-    for (Duplicate duplicate: unionRecord.getDuplicates()) {
+    for (Duplicate duplicate : unionRecord.getDuplicates()) {
       if (duplicate.getName().equals(dbToMerge)) {
         return true;
       }
@@ -183,6 +186,37 @@ public class IncrementalMode {
         return bmbCollection;
       default:
         throw new NoSuchElementException();
+    }
+  }
+
+  private LocalDateTime getLastUpdate() {
+    File file = new File(LAST_UPDATE_FILE_PATH);
+
+    try {
+      BufferedReader br = new BufferedReader(new FileReader(file));
+
+      String lastUpdate;
+      if ((lastUpdate = br.readLine()) != null) {
+        return LocalDateTime.parse(lastUpdate);
+      }
+    } catch (IOException | DateTimeParseException e) {
+      System.out.println("[" + LocalDateTime.now() + "] " + e.getMessage());
+      System.out.println("[" + LocalDateTime.now() + "] Current time is considered as last update.");
+    }
+
+    System.out.println("[" + LocalDateTime.now() + "] File " + LAST_UPDATE_FILE_PATH
+        + " is empty. Current time is considered as last update.");
+    return LocalDateTime.now();
+  }
+
+  private void saveLastUpdate() {
+    try {
+      BufferedWriter writer = new BufferedWriter(new FileWriter(new File(LAST_UPDATE_FILE_PATH)));
+      writer.write(updateStartTime.toString());
+
+      writer.close();
+    } catch (IOException e) {
+      e.printStackTrace();
     }
   }
 

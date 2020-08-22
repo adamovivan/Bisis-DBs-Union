@@ -741,7 +741,7 @@ Vise baza:
 Datum:
 
 {
-   lastModifiedDate: {
+   creationDate: {
       $gt: ISODate("2006-06-07T00:00:00Z")
    }
 }
@@ -750,7 +750,7 @@ Datum:
 ################################
 
 
-Find record in union db
+Find merged record in union db
 
 
 {

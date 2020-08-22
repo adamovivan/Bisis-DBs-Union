@@ -32,7 +32,6 @@ class Main {
   }
 
   public static void main(String[] args) {
-
     MergeMode mergeMode = parseArgs(args);
 
     ConnectionString connectionString = new ConnectionString(Constants.MONGO_CONNECTION_URL);

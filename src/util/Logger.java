@@ -37,9 +37,4 @@ public class Logger {
     System.out.println();
   }
 
-  public void newLine(int n) {
-    for (int i = 0; i < n; i++) {
-      System.out.println();
-    }
-  }
 }

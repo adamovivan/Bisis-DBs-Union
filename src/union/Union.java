@@ -1,9 +1,9 @@
 package union;
 
+import org.bson.conversions.Bson;
 import records.Duplicate;
 import records.Field;
 import records.Record;
-import records.RecordModification;
 import records.SubField;
 
 import java.time.LocalDateTime;
@@ -12,6 +12,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static com.mongodb.client.model.Updates.set;
+
+import static util.Constants.DUPLICATES;
+import static util.Constants.FIELDS;
+import static util.Constants.LAST_MODIFIED_DATE;
+import static util.Constants.MODIFIER;
 
 public class Union {
 
@@ -63,32 +70,14 @@ public class Union {
     }
   }
 
-//  private static void updateRecord(Record recordToUpdate, Record record, LocalDateTime lastUpdate) {
-//    recordToUpdate.setCommonBookUid(record.getCommonBookUid());
-//    recordToUpdate.setPubType(record.getPubType());
-//    recordToUpdate.setFields(record.getFields());
-//
-//    List<RecordModification> recordModifications;
-//
-//    if (recordToUpdate.getRecordModifications() == null) {
-//      recordModifications = new ArrayList<>();
-//    } else {
-//      recordModifications = recordToUpdate.getRecordModifications();
-//    }
-//
-//    // update only newer modifications
-//    record.getRecordModifications().forEach(recordModification -> {
-//      if (recordModification.getDateOfModification().compareTo(lastUpdate) > 0) {
-//        recordModifications.add(recordModification);
-//      }
-//    });
-//
-//    recordToUpdate.setRecordModifications(recordModifications);
-//
-//    recordToUpdate.setLastModifiedDate(LocalDateTime.now());
-//    recordToUpdate.setInUseBy(record.getInUseBy());
-//    re
-//  }
+  public static List<Bson> getUpdates(Record unionRecord) {
+    List<Bson> updates = new ArrayList<>();
+    updates.add(set(DUPLICATES, unionRecord.getDuplicates()));
+    updates.add(set(FIELDS, unionRecord.getFields()));
+    updates.add(set(MODIFIER, unionRecord.getModifier()));
+    updates.add(set(LAST_MODIFIED_DATE, unionRecord.getLastModifiedDate()));
+    return updates;
+  }
 
   private static Field getField(List<Field> fields, String name) {
     for (Field field: fields) {
@@ -106,7 +95,7 @@ public class Union {
     record.setCreator(null);
   }
 
-  public static void setUpdateMetadata(Record record) {
+  public static void updateMetadata(Record record) {
     record.setLastModifiedDate(LocalDateTime.now());
   }
 
