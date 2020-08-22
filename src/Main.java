@@ -7,8 +7,11 @@ import merge.full_mode.FullMode;
 import merge.incremental_mode.IncrementalMode;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
+import records.Field;
 import redis.clients.jedis.Jedis;
 import util.Constants;
+
+import java.io.File;
 
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
@@ -31,6 +34,14 @@ class Main {
     }
   }
 
+  private static void createLogsDir() {
+    File file = new File(Constants.LOGS_PATH);
+
+    if (!file.exists()) {
+      file.mkdir();
+    }
+  }
+
   public static void main(String[] args) {
     MergeMode mergeMode = parseArgs(args);
 
@@ -45,6 +56,9 @@ class Main {
             .build();
 
     MongoClient mongoClient = MongoClients.create(settings);
+
+    // create logs dir if does exist
+    createLogsDir();
 
     switch (mergeMode) {
       case FULL:
